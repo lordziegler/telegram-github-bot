@@ -4,8 +4,9 @@ services:
     image: telegram-github-bot:local
     env_file: .env
     environment:
-      # Si no, un DATABASE_URL vacío en .env significaría "en memoria" dentro del contenedor.
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/bot.db}
+      # Fijo: ignora el DATABASE_URL de .env (vacío = en memoria; una ruta relativa caería en
+      # /app, que es de solo lectura). El volumen bot-data es lo único escribible.
+      DATABASE_URL: sqlite:////data/bot.db
     volumes:
       - bot-data:/data
     restart: unless-stopped
