@@ -1,4 +1,7 @@
-"""Thin async GitHub REST client: auth (PAT or App), retries with backoff, error mapping."""
+"""Cliente asíncrono y delgado de la API REST de GitHub.
+
+Autenticación (PAT o App), reintentos con espera exponencial y traducción de errores.
+"""
 
 from __future__ import annotations
 
@@ -14,13 +17,15 @@ import httpx
 
 API = "https://api.github.com"
 log = logging.getLogger(__name__)
-Json = Any  # GitHub JSON payloads are consumed as plain dicts/lists
+Json = Any  # el JSON de GitHub se usa como dicts/listas
 
 
 class GitHubError(Exception):
     def __init__(self, status: int, message: str, request_id: str | None = None) -> None:
         super().__init__(f"{status}: {message}")
-        self.status = status  # 0 = network error, 429 = rate limited (also for 403 rate limits)
+        self.status = (
+            status  # 0 = error de red; 429 = límite de frecuencia (también los 403 por límite)
+        )
         self.message = message
         self.request_id = request_id
 
@@ -47,7 +52,7 @@ class GitHub:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    # -- auth ---------------------------------------------------------------------------------
+    # -- autenticación ---------------------------------------------------------------------------
 
     async def _auth_header(self) -> str:
         if self._app is None:
@@ -55,10 +60,10 @@ class GitHub:
         cached = self._installation_token
         if cached and cached[1] - time.time() > 300:
             return f"Bearer {cached[0]}"
-        import jwt  # optional extra: telegram-github-bot[github-app]
+        import jwt  # extra opcional: telegram-github-bot[github-app]
 
         app_id, key, installation = self._app
-        assert key is not None  # noqa: S101 - guaranteed by config validation
+        assert key is not None  # noqa: S101 - lo garantiza la validación de config
         now = int(time.time())
         app_jwt = jwt.encode({"iat": now - 60, "exp": now + 540, "iss": app_id}, key, "RS256")
         resp = await self._send(
@@ -69,7 +74,7 @@ class GitHub:
         self._installation_token = (data["token"], expires)
         return f"Bearer {data['token']}"
 
-    # -- transport ----------------------------------------------------------------------------
+    # -- transporte ------------------------------------------------------------------------------
 
     async def request(
         self,
@@ -112,10 +117,10 @@ class GitHub:
                     follow_redirects=follow_redirects,
                 )
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
-                # Nothing reached GitHub: safe to retry any method.
+                # No llegó nada a GitHub: se puede reintentar cualquier método.
                 delay, error = 2.0**attempt, GitHubError(0, str(exc) or type(exc).__name__)
             except httpx.TransportError as exc:
-                # The request may have been processed: never retry writes (duplicate issues).
+                # Puede que GitHub la procesara: nunca reintentar escrituras (issues duplicados).
                 if not idempotent:
                     raise GitHubError(0, str(exc) or type(exc).__name__) from exc
                 delay, error = 2.0**attempt, GitHubError(0, str(exc) or type(exc).__name__)
@@ -131,12 +136,12 @@ class GitHub:
                     raise error
             if attempt == 3 or waited + delay > self._max_wait:
                 raise error
-            log.warning("github retry", extra={"status": error.status, "delay": delay})
+            log.warning("reintento contra GitHub", extra={"status": error.status, "delay": delay})
             waited += delay
             await self._sleep(delay)
-        raise AssertionError("unreachable")
+        raise AssertionError("inalcanzable")
 
-    # -- helpers ------------------------------------------------------------------------------
+    # -- utilidades ------------------------------------------------------------------------------
 
     async def get(self, path: str, **params: Any) -> Json:
         return (await self.request("GET", path, params=params or None)).json()
@@ -144,7 +149,7 @@ class GitHub:
     async def page(
         self, path: str, page: int, per_page: int = 10, **params: Any
     ) -> tuple[Json, bool]:
-        """One page of a list endpoint and whether a next page exists (Link header)."""
+        """Una página de un endpoint de lista, y si existe una siguiente (cabecera Link)."""
         resp = await self.request(
             "GET", path, params={**params, "per_page": per_page, "page": page}
         )
@@ -155,8 +160,8 @@ class GitHub:
         return resp.json() if resp.content else None
 
     async def log_tail(self, path: str, lines: int = 25) -> list[str]:
-        """Last lines of a plain-text log. GitHub answers 302 to a short-lived URL on another
-        host; httpx drops the Authorization header on cross-origin redirects."""
+        """Últimas líneas de un log de texto plano. GitHub responde 302 hacia una URL efímera en
+        otro host; httpx quita la cabecera Authorization al redirigir a otro origen."""
         tail: deque[str] = deque(maxlen=lines)
         auth = await self._auth_header()
         resp = await self._send("GET", path, auth, follow_redirects=False)
@@ -165,7 +170,7 @@ class GitHub:
             return resp.text.splitlines()[-lines:]
         async with self._client.stream("GET", location) as stream:
             if stream.status_code >= 400:
-                raise GitHubError(stream.status_code, "log download failed")
+                raise GitHubError(stream.status_code, "falló la descarga del log")
             async for line in stream.aiter_lines():
                 tail.append(line)
         return list(tail)
@@ -197,7 +202,7 @@ def _error(resp: httpx.Response) -> GitHubError:
 
 
 def _rate_limit_delay(resp: httpx.Response) -> float:
-    """GitHub's documented order: retry-after, then x-ratelimit-reset, else at least a minute."""
+    """Orden documentado por GitHub: retry-after, luego x-ratelimit-reset; si no, un minuto."""
     if (retry_after := resp.headers.get("retry-after", "")).isdigit():
         return float(retry_after)
     if resp.headers.get("x-ratelimit-remaining") == "0":

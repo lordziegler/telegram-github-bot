@@ -1,4 +1,4 @@
-"""GitHub Actions: trigger a workflow and inspect its runs."""
+"""GitHub Actions: lanzar un workflow y revisar sus ejecuciones."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ async def run(ctx: Ctx, text: str) -> Reply:
             f"/repos/{repo}/actions/workflows/{workflow}/dispatches",
             {"ref": ref, "inputs": inputs},
         )
-        # 200 with run details on current GitHub; older servers answer 204 without a body.
+        # GitHub actual responde 200 con la ejecución; servidores antiguos, 204 sin cuerpo.
         url = (result or {}).get("html_url")
         return ctx.t(
             "run_started" if url else "run_started_nourl",

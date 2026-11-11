@@ -1,4 +1,4 @@
-"""Onboarding, identity and repository selection."""
+"""Bienvenida, identidad y selección de repositorio."""
 
 from __future__ import annotations
 

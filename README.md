@@ -1,120 +1,122 @@
 # telegram-github-bot
 
-A self-hosted Telegram bot to work with GitHub repositories from a chat: browse and create
-issues, comment, label, assign, review pull requests, check CI, and trigger GitHub Actions
-workflows. Access is limited to an allowlist of Telegram users with three roles.
+Bot de Telegram autoalojado para trabajar con repositorios de GitHub desde un chat: consultar y
+crear issues, comentar, etiquetar, asignar, revisar pull requests, ver la CI y lanzar workflows de
+GitHub Actions. El acceso está limitado a una lista de usuarios de Telegram con tres roles.
 
-Everything specific to you (tokens, user IDs, repositories) lives in environment variables;
-nobody needs to edit the code to run their own instance. The bot's interface is in Spanish
-and every text lives in [`src/tgbot/locales/es.json`](src/tgbot/locales/es.json).
+Todo lo que es tuyo (tokens, IDs de usuario, repositorios) vive en variables de entorno: nadie
+tiene que tocar el código para montar su propia instancia. La interfaz del bot está en español y
+todos sus textos están en [`src/tgbot/locales/es.json`](src/tgbot/locales/es.json).
 
-| Role | Can |
+| Rol | Puede |
 |---|---|
 | `viewer` | `/repos` `/repo` `/issues` `/issue` `/prs` `/pr` `/ci` `/runs` |
-| `maintainer` | the above + `/issue_new` `/comment` `/label` `/assign` `/close` `/reopen` `/review … comment` |
-| `admin` | the above + `/review … approve\|request_changes` `/run` `/admin …` |
+| `maintainer` | lo anterior + `/issue_new` `/comment` `/label` `/assign` `/close` `/reopen` `/review … comment` |
+| `admin` | lo anterior + `/review … approve\|request_changes` `/run` `/admin …` |
 
-`/start`, `/help` and `/whoami` work for everyone (unknown users see their Telegram ID so they
-can ask for access). Closing, reopening, approving, requesting changes, running workflows and
-`/admin deny|role|repo remove` ask for confirmation with buttons only the requester can press.
+`/start`, `/help` y `/whoami` funcionan para cualquiera (un usuario desconocido ve su ID de
+Telegram para pedir acceso). Cerrar, reabrir, aprobar, pedir cambios, lanzar workflows y
+`/admin deny|role|repo remove` piden confirmación con botones que solo puede pulsar quien lanzó
+el comando.
 
-## 1. Clone
+## 1. Clonar
 
 ```bash
-git clone https://github.com/<you>/telegram-github-bot.git
+git clone https://github.com/<tu-usuario>/telegram-github-bot.git
 cd telegram-github-bot
 cp .env.example .env
 ```
 
-## 2. Create the Telegram bot
+## 2. Crear el bot de Telegram
 
-1. Talk to [@BotFather](https://t.me/BotFather), send `/newbot`, and copy the token into
+1. Habla con [@BotFather](https://t.me/BotFather), envía `/newbot` y copia el token en
    `TELEGRAM_BOT_TOKEN`.
-2. You need your own Telegram user ID for `TELEGRAM_ADMIN_USER_IDS`. The bot tells you: start it
-   once with a placeholder (`TELEGRAM_ADMIN_USER_IDS=1`), send it `/start`, put the ID it replies
-   with into `.env`, and restart.
-3. To use it in a group, add the bot to the group and put the group's chat ID (a negative
-   number) in `TELEGRAM_ALLOWED_CHAT_IDS`. Users still need to be allowed individually.
+2. Necesitas tu ID de usuario de Telegram para `TELEGRAM_ADMIN_USER_IDS`. El propio bot te lo dice:
+   arráncalo una vez con un valor provisional (`TELEGRAM_ADMIN_USER_IDS=1`), envíale `/start`,
+   copia en `.env` el ID que te responde y reinícialo.
+3. Para usarlo en un grupo, añade el bot al grupo y pon el ID del chat del grupo (un número
+   negativo) en `TELEGRAM_ALLOWED_CHAT_IDS`. Los usuarios siguen necesitando acceso individual.
 
-## 3. Give it access to GitHub (least privilege)
+## 3. Darle acceso a GitHub (mínimo privilegio)
 
-**Option A: fine-grained personal access token** (simplest). In GitHub → Settings → Developer
-settings → Fine-grained tokens: choose the resource owner, *Only select repositories*, and grant
-exactly:
+**Opción A: personal access token fine-grained** (lo más sencillo). En GitHub → Settings →
+Developer settings → Fine-grained tokens: elige el propietario (resource owner), *Only select
+repositories*, y concede exactamente:
 
-| Repository permission | Access | Used by |
+| Permiso de repositorio | Acceso | Lo usan |
 |---|---|---|
-| Metadata | Read (mandatory) | everything |
+| Metadata | Read (obligatorio) | todo |
 | Issues | Read and write | `/issues` `/issue` `/issue_new` `/comment` `/close` `/reopen` `/label` `/assign` |
 | Pull requests | Read and write | `/prs` `/pr` `/review` |
 | Commit statuses | Read | `/ci` |
-| Actions | Read and write | `/runs`, `/ci`; write only for `/run` (use Read if you won't trigger workflows) |
+| Actions | Read and write | `/runs`, `/ci`; escritura solo para `/run` (usa Read si no vas a lanzar workflows) |
 
-Put it in `GITHUB_TOKEN`. A fine-grained token covers one owner (user or organization), and the
-check-runs API is not available to it, so `/ci` shows commit statuses plus Actions runs instead.
+Ponlo en `GITHUB_TOKEN`. Un token fine-grained cubre un solo propietario (usuario u organización)
+y no tiene acceso a la API de check runs, así que `/ci` muestra en su lugar los estados del commit
+y las ejecuciones de Actions.
 
-**Option B: GitHub App** (recommended for organizations; actions appear as the app, not as a
-person). Create an app with the same permissions plus *Checks: Read*, install it on the
-repositories, generate a private key, and set `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (PEM text
-or path to the `.pem`) and `GITHUB_APP_INSTALLATION_ID` (the number at the end of the
-installation's settings URL). Install with the `github-app` extra (the Docker image includes it).
-If both a token and an app are configured, the app is used.
+**Opción B: GitHub App** (recomendada para organizaciones; las acciones aparecen a nombre de la
+app, no de una persona). Crea una app con los mismos permisos más *Checks: Read*, instálala en los
+repositorios, genera una clave privada y define `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (el
+texto PEM o la ruta al `.pem`) y `GITHUB_APP_INSTALLATION_ID` (el número al final de la URL de
+ajustes de la instalación). Instala el extra `github-app` (la imagen Docker ya lo incluye). Si hay
+token y app configurados, se usa la app.
 
-Whatever the identity, **every action on GitHub is performed as that token or app**, not as
-the Telegram user. That is why approving and requesting changes are admin-only.
+Sea cual sea la identidad, **toda acción en GitHub se hace a nombre de ese token o app**, no del
+usuario de Telegram. Por eso aprobar y pedir cambios es solo para admins.
 
-## 4. Configure
+## 4. Configurar
 
-Fill `.env`. Required: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_USER_IDS`, and GitHub credentials.
-Every variable is documented in [`.env.example`](.env.example) and
-[docs/configuration.md](docs/configuration.md). Invalid or missing values stop the bot at startup
-with a list of exactly what to fix.
+Rellena `.env`. Obligatorio: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_USER_IDS` y las credenciales
+de GitHub. Cada variable está documentada en [`.env.example`](.env.example) y en
+[docs/configuration.md](docs/configuration.md). Si falta algo o un valor no es válido, el bot no
+arranca y lista exactamente qué corregir.
 
-## 5. Run locally
+## 5. Ejecutar en local
 
-With Docker Compose (state is kept in the `bot-data` volume):
+Con Docker Compose (el estado se guarda en el volumen `bot-data`):
 
 ```bash
 docker compose up -d --build
 docker compose logs -f bot
 ```
 
-Or with Python 3.11+ and [uv](https://docs.astral.sh/uv/):
+O con Python 3.11+ y [uv](https://docs.astral.sh/uv/):
 
 ```bash
 make install
-make run        # reads .env
+make run        # lee .env
 ```
 
-The bot uses long polling by default; no open port is needed. Webhook mode is described in
-[docs/deployment.md](docs/deployment.md#webhook-mode).
+Por defecto el bot usa long polling, así que no necesita abrir ningún puerto. El modo webhook está
+en [docs/deployment.md](docs/deployment.md#modo-webhook).
 
-## 6. Deploy
+## 6. Desplegar
 
-Run the same Compose file on any server with Docker. The included
-[`deploy.yml`](.github/workflows/deploy.yml) workflow deploys or restarts it over SSH from the
-Actions tab. Setup, secrets and alternatives are in [docs/deployment.md](docs/deployment.md).
-GitHub Actions is used to *deploy* the bot, not to host it: runner jobs are time-limited and
-their disk is discarded, which would wipe the roles and repositories added from Telegram.
+Ejecuta el mismo archivo de Compose en cualquier servidor con Docker. El workflow
+[`deploy.yml`](.github/workflows/deploy.yml) lo despliega o reinicia por SSH desde la pestaña
+Actions. Configuración, secretos y alternativas en [docs/deployment.md](docs/deployment.md).
+GitHub Actions sirve para *desplegar* el bot, no para alojarlo: los jobs tienen tiempo limitado y
+su disco se descarta, lo que borraría los roles y repositorios añadidos desde Telegram.
 
-## 7. Add repositories and users
+## 7. Añadir repositorios y usuarios
 
-From Telegram, as an admin:
+Desde Telegram, como admin:
 
 ```text
-/admin repo add octo-org/api          # verifies the token can reach it
-/repo octo-org/api                    # select it for your commands
-/admin allow 123456789                # new user, starts as viewer
+/admin repo add octo-org/api          # comprueba que el token llega al repo
+/repo octo-org/api                    # lo selecciona para tus comandos
+/admin allow 123456789                # usuario nuevo, empieza como viewer
 /admin role 123456789 maintainer
-/admin                                # list users and repositories
+/admin                                # lista usuarios y repositorios
 ```
 
-Users and repositories set in environment variables are fixed: they cannot be removed or
-demoted from chat, so an admin can never be locked out.
+Los usuarios y repositorios definidos en variables de entorno están fijados: no se pueden quitar
+ni degradar desde el chat, así que un admin nunca puede quedarse fuera.
 
-## 8. Add a command
+## 8. Añadir un comando
 
-Create a module in `src/tgbot/commands/`; it is loaded automatically:
+Crea un módulo en `src/tgbot/commands/`; se carga automáticamente:
 
 ```python
 from tgbot.bot import Ctx, command
@@ -127,34 +129,34 @@ async def labels(ctx: Ctx, text: str) -> str:
     return ", ".join(label["name"] for label in items) or "-"
 ```
 
-Add `cmd.labels.desc`, `cmd.labels.usage` and `cmd.labels.example` to the locale file and a test.
-Authorization, rate limiting, error messages and logging are applied for you. See
-[docs/extending.md](docs/extending.md).
+Añade `cmd.labels.desc`, `cmd.labels.usage` y `cmd.labels.example` al archivo de idioma, y un
+test. La autorización, el límite de frecuencia, los mensajes de error y los logs se aplican solos.
+Más en [docs/extending.md](docs/extending.md).
 
-## Development
+## Desarrollo
 
 ```bash
 make install     # uv sync --locked --all-extras
-make lint        # ruff check + format check
+make lint        # ruff check + comprobación de formato
 make typecheck   # mypy --strict
-make test        # pytest: unit + integration (Telegram and GitHub faked, no network)
-make build       # docker image
+make test        # pytest: unitarios + integración (Telegram y GitHub simulados, sin red)
+make build       # imagen Docker
 ```
 
-CI runs all of the above on Python 3.11 and 3.14 and builds the image.
+La CI ejecuta todo lo anterior con Python 3.11 y 3.14 y construye la imagen.
 
-## Not included (on purpose)
+## Fuera de alcance (a propósito)
 
-Deleting repositories or releases, force-pushing, editing branch protection, merging PRs, and
-notifications pushed from GitHub webhooks are out of scope for this version. See
-[docs/extending.md](docs/extending.md#future-extensions).
+Borrar repositorios o releases, force push, cambiar protecciones de rama, fusionar PRs y las
+notificaciones desde webhooks de GitHub quedan fuera de esta versión. Ver
+[docs/extending.md](docs/extending.md#extensiones-futuras).
 
-## Documentation
+## Documentación
 
-- [Architecture and design decisions](docs/architecture.md)
-- [Configuration reference](docs/configuration.md)
-- [Deployment](docs/deployment.md)
-- [Security](docs/security.md)
-- [Extending](docs/extending.md)
+- [Arquitectura y decisiones de diseño](docs/architecture.md)
+- [Referencia de configuración](docs/configuration.md)
+- [Despliegue](docs/deployment.md)
+- [Seguridad](docs/security.md)
+- [Cómo extenderlo](docs/extending.md)
 
-License: [MIT](LICENSE).
+Licencia: [MIT](LICENSE) (el texto legal se mantiene en inglés, que es su versión oficial).

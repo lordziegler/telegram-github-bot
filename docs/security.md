@@ -1,68 +1,71 @@
-# Security
+# Seguridad
 
-## Access control
+## Control de acceso
 
-- Only users with a role can run anything beyond `/start`, `/help` and `/whoami`. Unknown users
-  get their Telegram ID and how to request access; GitHub is never called for them.
-- In groups, the chat must be in `TELEGRAM_ALLOWED_CHAT_IDS` and the user must have a role.
-  Messages from other groups are ignored without a reply.
-- Every command goes through one function (`Runtime.dispatch`), which applies the chat check,
-  rate limits and the role check before the handler runs. A new command cannot skip it.
-- Buttons are bound to the user who caused them. Pressing someone else's button, an expired
-  one, or a confirmation after losing the role does nothing.
-- Admins from the environment cannot be demoted or removed from chat, so the bot cannot be
-  taken over or locked by an admin added at runtime.
+- Solo los usuarios con rol pueden ejecutar algo más que `/start`, `/help` y `/whoami`. Un usuario
+  desconocido recibe su ID de Telegram y cómo pedir acceso; para él nunca se llama a GitHub.
+- En grupos, el chat tiene que estar en `TELEGRAM_ALLOWED_CHAT_IDS` y el usuario tiene que tener un
+  rol. Los mensajes de otros grupos se ignoran sin responder.
+- Todo comando pasa por una única función (`Runtime.dispatch`), que aplica la comprobación del
+  chat, los límites de frecuencia y la comprobación de rol antes de ejecutar el handler. Un
+  comando nuevo no puede saltársela.
+- Los botones están ligados a quien los generó. Pulsar el botón de otro, uno caducado, o una
+  confirmación después de haber perdido el rol no hace nada.
+- Los admins del entorno no se pueden degradar ni expulsar desde el chat, así que un admin añadido
+  en ejecución no puede apoderarse del bot ni dejarlo sin administradores.
 
-## GitHub permissions
+## Permisos en GitHub
 
-Grant the minimum (table in the [README](../README.md#3-give-it-access-to-github-least-privilege)):
-no Contents write, no Administration, no Secrets. The bot only manages repositories on its list,
-even if the token can see more. Every action on GitHub is recorded as the token's owner or the
-App, never as the Telegram user; the bot's JSON log records which Telegram user did what
-(`user_id`, `command`, `cid`). This is why `approve` / `request_changes` and `/run` are admin-only
-and confirmed.
+Concede lo mínimo (tabla en el [README](../README.md#3-darle-acceso-a-github-mínimo-privilegio)):
+nada de escritura en Contents, ni Administration, ni Secrets. El bot solo gestiona los repositorios
+de su lista, aunque el token vea más. Toda acción en GitHub queda registrada a nombre del dueño
+del token o de la App, nunca del usuario de Telegram; el log JSON del bot registra qué usuario de
+Telegram hizo qué (`user_id`, `command`, `cid`). Por eso `approve` / `request_changes` y `/run` son
+solo de admin y con confirmación.
 
-Prefer a GitHub App for organizations: short-lived (1 hour) installation tokens, per-repository
-installation, and actions attributed to the app.
+Para organizaciones es preferible una GitHub App: tokens de instalación de vida corta (1 hora),
+instalación por repositorio y acciones atribuidas a la app.
 
-## Input handling
+## Tratamiento de la entrada
 
-- Repository names, users, refs, workflow files, numbers and workflow inputs are validated
-  against strict patterns before being placed in a URL path; `owner/..`-style traversal is rejected.
-  Label names are URL-encoded.
-- Free text (titles, bodies, comments) has control characters stripped and length limits.
-- Everything coming back from GitHub is HTML-escaped before it is sent to Telegram.
-- No shell, `eval`, or subprocess is ever derived from a message.
+- Los nombres de repositorio, usuarios, refs, archivos de workflow, números e inputs de workflow se
+  validan con patrones estrictos antes de ponerlos en una ruta de URL; se rechazan recorridos del
+  tipo `owner/..`. Los nombres de etiqueta se codifican para URL.
+- Al texto libre (títulos, cuerpos, comentarios) se le quitan los caracteres de control y se le
+  aplican límites de longitud.
+- Todo lo que viene de GitHub se escapa como HTML antes de enviarlo a Telegram.
+- Ningún mensaje se convierte nunca en un comando de shell, `eval` o subproceso.
 
-## Secrets
+## Secretos
 
-- Secrets come only from the environment. `.env`, `*.pem` and databases are git- and
-  docker-ignored.
-- All log output passes through one formatter that replaces every configured secret value and
-  anything shaped like a Telegram bot token, a GitHub token (`ghp_`, `ghs_`, `github_pat_`…) or
-  a PEM private key. `httpx` request logging (which would include the bot token in the URL) is
-  turned down to WARNING.
-- Errors that escape the bot (for example python-telegram-bot's `InvalidToken`, whose message
-  contains the token) are logged through that formatter instead of a raw traceback.
-- Users see "internal error, ref uN" for unexpected failures, never a stack trace.
+- Los secretos solo vienen del entorno. `.env`, `*.pem` y las bases de datos están en
+  `.gitignore` y `.dockerignore`.
+- Toda la salida de logs pasa por un único formateador que reemplaza cada valor secreto
+  configurado y todo lo que tenga forma de token de bot de Telegram, de token de GitHub (`ghp_`,
+  `ghs_`, `github_pat_`…) o de clave privada PEM. El log de peticiones de `httpx` (que incluiría el
+  token del bot en la URL) se baja a WARNING.
+- Los errores que escapan del bot (por ejemplo, `InvalidToken` de python-telegram-bot, cuyo
+  mensaje contiene el token) se registran con ese formateador en vez de un traceback sin filtrar.
+- Ante un fallo inesperado, el usuario ve «error interno, ref uN», nunca un stack trace.
 
-## Abuse limits
+## Límites contra el abuso
 
-Per-user and per-command rate limits; GitHub calls retry within a 20 s budget; writes are never
-retried when GitHub may have processed them (no duplicate issues).
+Límites de frecuencia por usuario y por comando; las llamadas a GitHub se reintentan dentro de un
+margen de 20 s; las escrituras nunca se reintentan si GitHub pudo haberlas procesado (sin issues
+duplicados).
 
 ## CI/CD
 
-- `ci.yml` uses `pull_request` (not `pull_request_target`): pull requests from forks run with a
-  read-only token and no secrets. `permissions: contents: read`.
-- `docker.yml` only gets `packages: write` in the publishing job and uses `GITHUB_TOKEN`.
-- `deploy.yml` is manual, bound to the `production` environment (add required reviewers), uses
-  a dedicated SSH key restricted with `restrict`, checks the pinned host key, and deletes the key
-  at the end. The deploy user is in the `docker` group, which is root-equivalent on that host:
-  use a host dedicated to services you trust.
-- Third-party actions are pinned by commit SHA.
+- `ci.yml` usa `pull_request` (no `pull_request_target`): los pull requests de forks corren con un
+  token de solo lectura y sin secretos. `permissions: contents: read`.
+- `docker.yml` solo tiene `packages: write` en el job que publica y usa `GITHUB_TOKEN`.
+- `deploy.yml` es manual, está ligado al environment `production` (añade revisores obligatorios),
+  usa una clave SSH dedicada limitada con `restrict`, comprueba la clave fijada del host y borra la
+  clave al terminar. El usuario de despliegue está en el grupo `docker`, lo que equivale a root en
+  ese servidor: usa un servidor dedicado a servicios de confianza.
+- Las acciones de terceros están fijadas por SHA de commit.
 
-## Reporting
+## Si algo se filtra
 
-If you find a vulnerability in your deployment of this project, rotate the affected token first
-(BotFather `/revoke`, GitHub token or App key), then fix.
+Si encuentras una vulnerabilidad en tu despliegue, rota primero el token afectado (`/revoke` en
+BotFather, el token de GitHub o la clave de la App) y después corrige.

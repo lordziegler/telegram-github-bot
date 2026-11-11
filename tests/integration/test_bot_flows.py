@@ -1,4 +1,5 @@
-"""End-to-end through python-telegram-bot's real Application, with Telegram and GitHub faked."""
+"""De extremo a extremo con la Application real de python-telegram-bot; Telegram y GitHub
+son falsos."""
 
 from __future__ import annotations
 
@@ -37,8 +38,8 @@ def test_viewer_reads_but_cannot_write() -> None:
         h = await harness({("GET", f"{REPO}/issues"): fixture("issues.json")})
         await h.send(VIEWER, "/issues open label:bug")
         text = h.tg.last_text()
-        assert "#5" in text and "Login returns &lt;500&gt;" in text  # escaped HTML
-        assert "#6" not in text  # pull requests are filtered out of /issues
+        assert "#5" in text and "Login returns &lt;500&gt;" in text  # HTML escapado
+        assert "#6" not in text  # /issues descarta los pull requests
         params = h.gh.requests[-1].url.params
         assert params["state"] == "open" and params["labels"] == "bug"
 
@@ -90,7 +91,7 @@ def test_close_needs_confirmation_from_the_same_user() -> None:
         ok, _cancel = h.buttons()
         assert h.gh.calls("PATCH") == []
 
-        await h.press(VIEWER, ok)  # someone else in the chat
+        await h.press(VIEWER, ok)  # otra persona del chat
         assert "Solo quien lanzó" in h.tg.alerts()[-1]
         assert h.gh.calls("PATCH") == []
 
@@ -98,7 +99,7 @@ def test_close_needs_confirmation_from_the_same_user() -> None:
         assert json.loads(h.gh.calls("PATCH")[0].content) == {"state": "closed"}
         assert "cerrado" in h.tg.last_text()
 
-        await h.press(MAINTAINER, ok)  # one-shot
+        await h.press(MAINTAINER, ok)  # un solo uso
         assert "caducó" in h.tg.alerts()[-1]
         assert len(h.gh.calls("PATCH")) == 1
 
@@ -168,7 +169,7 @@ def test_github_errors_become_actionable_messages() -> None:
         assert "No encontrado en GitHub" in h.tg.last_text()
         await h.send(VIEWER, "/pr 3")
         assert "HTTP 502" in h.tg.last_text()
-        assert len(h.gh.calls("GET")) == 1 + 4  # the 404 + 4 attempts on the 502
+        assert len(h.gh.calls("GET")) == 1 + 4  # el 404 + 4 intentos contra el 502
         await h.send(MAINTAINER, "/review 3 comment looks good")
         assert "Can not approve your own PR" in h.tg.last_text()
 
@@ -179,7 +180,7 @@ def test_ignored_contexts() -> None:
     async def scenario() -> None:
         h = await harness()
         await h.send(ADMIN, "/whoami", chat_id=-100123, chat_type="supergroup")
-        assert h.tg.sent() == []  # group not in TELEGRAM_ALLOWED_CHAT_IDS
+        assert h.tg.sent() == []  # grupo fuera de TELEGRAM_ALLOWED_CHAT_IDS
         edited = {
             "update_id": 500,
             "edited_message": {
@@ -195,7 +196,7 @@ def test_ignored_contexts() -> None:
         from telegram import Update
 
         await h.app.process_update(Update.de_json(edited, h.app.bot))
-        assert h.tg.sent() == []  # edits never re-run commands
+        assert h.tg.sent() == []  # editar nunca vuelve a ejecutar un comando
 
     run(scenario())
 
@@ -244,7 +245,7 @@ def test_help_fits_in_one_message_and_every_command_is_translated() -> None:
         h = await harness()
         await h.send(ADMIN, "/help")
         text = h.tg.last_text()
-        assert "<code>" in text  # still HTML, i.e. it did not overflow into the plain fallback
+        assert "<code>" in text  # sigue en HTML: no se desbordó al texto plano
         from tgbot.bot import COMMANDS
 
         rt = h.app.bot_data["runtime"]
@@ -284,7 +285,7 @@ def test_ci_falls_back_to_actions_runs_for_fine_grained_pats() -> None:
         await h.send(VIEWER, "/ci 3")
         text = h.tg.last_text()
         assert "❌ 1 · ⏳ 0 · ✅ 1" in text
-        assert text.index("tests") < text.index("lint")  # failures first
+        assert text.index("tests") < text.index("lint")  # primero los fallos
 
     run(scenario())
 

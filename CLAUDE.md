@@ -1,29 +1,39 @@
 # telegram-github-bot
 
-Telegram bot that manages GitHub repositories. Python 3.11+, python-telegram-bot 22, httpx, SQLite.
+Bot de Telegram que gestiona repositorios de GitHub. Python 3.11+, python-telegram-bot 22, httpx,
+SQLite. Proyecto para una clase: toda la prosa está en español.
 
-## Commands
+## Comandos
 
-- `make install` · `make lint` · `make typecheck` · `make test` · `make check` (all three) · `make build`
-- `make format` fixes formatting and autofixable lint.
-- Tests need no network: `tests/conftest.py` fakes the Telegram Bot API (`FakeTelegram`, a
-  `BaseRequest`) and GitHub (`FakeGitHub`, an `httpx.MockTransport` route table).
+- `make install` · `make lint` · `make typecheck` · `make test` · `make check` (los tres) · `make build`
+- `make format` arregla el formato y lo que ruff pueda corregir solo.
+- Los tests no usan red: `tests/conftest.py` simula la Bot API de Telegram (`FakeTelegram`, un
+  `BaseRequest`) y GitHub (`FakeGitHub`, una tabla de rutas sobre `httpx.MockTransport`).
 
-## Layout
+## Estructura
 
-See `docs/architecture.md`. Short version: `domain.py` (pure rules) · `config.py` · `log.py` ·
-`store.py` (SQLite overlay on env) · `github.py` (REST client) · `bot.py` (registry + dispatch) ·
-`commands/*.py` (auto-imported, `@command`) · `locales/es.json` (all UI text).
+Ver `docs/architecture.md`. En corto: `domain.py` (reglas puras) · `config.py` · `log.py` ·
+`store.py` (capa SQLite sobre el entorno) · `github.py` (cliente REST) · `bot.py` (registro +
+dispatch) · `commands/*.py` (se importan solos, `@command`) · `locales/es.json` (todo el texto de
+la interfaz).
 
-## Invariants — keep them
+## Idioma
 
-- Every command enters through `Runtime.dispatch`; register with `@command`, never with a raw
-  python-telegram-bot handler.
-- UI text lives in `locales/es.json` (Spanish). Code, comments, logs, docs and commits: English.
-- Validate user values with `domain.py` parsers before they reach a GitHub URL path.
-- Never log message text or secrets; logs go through `JsonFormatter`, which redacts.
-- Writes to GitHub (POST/PATCH) must not be retried after the request may have been processed.
-- Irreversible actions or actions done as the token's owner go through `ctx.confirm`.
-- Edited messages must never run commands (`allowed_updates` + `filters.UpdateType.MESSAGE`).
-- Env-configured admins/users/repos are immutable from chat (lockout protection).
-- Every new command needs `cmd.<name>.desc|usage|example` locale keys (a test enforces it).
+- Docs, README, comentarios, docstrings, mensajes de configuración y logs: español.
+- Identificadores del código: inglés. Textos de la interfaz: `locales/es.json`.
+- Mensajes de commit: inglés. `LICENSE`: texto oficial del MIT, en inglés.
+
+## Invariantes — respétalos
+
+- Todo comando entra por `Runtime.dispatch`; regístralo con `@command`, nunca con un handler crudo
+  de python-telegram-bot.
+- Valida los valores del usuario con los validadores de `domain.py` antes de que lleguen a una ruta
+  de la API de GitHub.
+- Nunca registres en el log el texto de los mensajes ni secretos; los logs pasan por
+  `JsonFormatter`, que los oculta.
+- Las escrituras a GitHub (POST/PATCH) no se reintentan si la petición pudo haberse procesado.
+- Lo irreversible o lo que se hace a nombre del dueño del token pasa por `ctx.confirm`.
+- Los mensajes editados nunca ejecutan comandos (`allowed_updates` + `filters.UpdateType.MESSAGE`).
+- Los admins, usuarios y repos del entorno no se pueden cambiar desde el chat (protección contra
+  quedarse sin acceso).
+- Cada comando nuevo necesita las claves `cmd.<nombre>.desc|usage|example` (un test lo exige).

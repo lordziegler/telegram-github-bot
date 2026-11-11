@@ -1,4 +1,4 @@
-"""Pull requests, reviews and CI status."""
+"""Pull requests, reviews y estado de la CI."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ REVIEW_EVENTS = {"approve": "APPROVE", "request_changes": "REQUEST_CHANGES", "co
 
 
 def icon(status: str | None, conclusion: str | None) -> str:
-    """Check runs / workflow runs / commit statuses -> one emoji."""
+    """Check runs / ejecuciones de workflow / estados de commit -> un emoji."""
     if status not in (None, "completed"):
         return "⏳"
     return {
@@ -99,7 +99,7 @@ async def review(ctx: Ctx, text: str) -> Reply | str:
 
     if event == "COMMENT":
         return await submit()
-    # Approving or blocking is done as the token's owner: admin only, and confirmed.
+    # Aprobar o bloquear se hace a nombre del dueño del token: solo admin y con confirmación.
     ctx.require(Role.ADMIN)
     p = await ctx.gh.get(f"/repos/{repo}/pulls/{number}")
     prompt = ctx.t(f"confirm_{parts[1]}", number=number, title=p["title"], repo=repo)
@@ -125,7 +125,7 @@ async def ci(ctx: Ctx, text: str) -> str:
         checks = await ctx.gh.get(f"/repos/{repo}/commits/{sha}/check-runs", per_page=50)
         items: list[dict[str, Any]] = checks.get("check_runs", [])
     except GitHubError as exc:
-        # Fine-grained PATs cannot read check runs; fall back to Actions runs for the commit.
+        # Los PAT fine-grained no leen check runs: se usan las ejecuciones de Actions del commit.
         if exc.status != 403:
             raise
         runs = await ctx.gh.get(f"/repos/{repo}/actions/runs", head_sha=sha, per_page=30)

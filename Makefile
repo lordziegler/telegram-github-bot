@@ -1,26 +1,26 @@
 .PHONY: install lint format typecheck test check run build
 
-install:  ## Create .venv with runtime, extras and dev tools (uv.lock is authoritative)
+install:  ## Crea .venv con dependencias, extras y herramientas de desarrollo (manda uv.lock)
 	uv sync --locked --all-extras
 
-lint:
+lint:  ## Estilo y errores comunes (ruff)
 	uv run ruff check .
 	uv run ruff format --check .
 
-format:
+format:  ## Arregla formato y lo que ruff pueda corregir solo
 	uv run ruff format .
 	uv run ruff check --fix .
 
-typecheck:
+typecheck:  ## Tipos (mypy en modo estricto)
 	uv run mypy
 
-test:
+test:  ## Tests unitarios y de integración, sin red
 	uv run pytest
 
 check: lint typecheck test
 
-run:  ## Needs .env (cp .env.example .env)
+run:  ## Arranca el bot. Necesita .env (cp .env.example .env)
 	uv run --env-file .env python -m tgbot
 
-build:
+build:  ## Construye la imagen Docker
 	docker build -t telegram-github-bot:local .

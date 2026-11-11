@@ -1,6 +1,7 @@
-"""Telegram adapter: command registry, authorization, rate limiting, confirmations, pagination.
+"""Adaptador de Telegram: registro de comandos, autorización, límite de frecuencia,
+confirmaciones y paginación.
 
-Every command goes through `Runtime.dispatch`, so a new command cannot skip authorization.
+Todo comando pasa por `Runtime.dispatch`, así que uno nuevo no puede saltarse la autorización.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ BUTTON_TTL = 1800.0
 
 
 class Html(str):
-    """A locale parameter that is already HTML and must not be escaped again."""
+    """Parámetro de traducción que ya es HTML y no debe escaparse otra vez."""
 
 
 class I18n:
@@ -58,8 +59,8 @@ class I18n:
         self.strings: dict[str, str] = json.loads((LOCALES_DIR / f"{locale}.json").read_text())
 
     def __call__(self, key: str, **params: object) -> str:
-        """Templates are HTML; params are escaped unless already `Html` (e.g. another t() call).
-        Returns an `Html` instance, so a translation can be passed as a param of another one."""
+        """Las plantillas son HTML; los parámetros se escapan salvo que ya sean `Html` (p. ej. otro
+        t()). Devuelve una instancia de `Html`, así que una traducción puede ir dentro de otra."""
         template = self.strings.get(key, key)
         safe = {k: v if isinstance(v, Html) else html.escape(str(v)) for k, v in params.items()}
         return Html(template.format(**safe))
@@ -68,7 +69,7 @@ class I18n:
 @dataclass
 class Reply:
     text: str
-    buttons: list[list[tuple[str, str]]] = field(default_factory=list)  # (label, callback_data)
+    buttons: list[list[tuple[str, str]]] = field(default_factory=list)  # (texto, callback_data)
 
 
 Handler = Callable[["Ctx", str], Awaitable[Reply | str]]
@@ -77,9 +78,9 @@ Handler = Callable[["Ctx", str], Awaitable[Reply | str]]
 @dataclass(frozen=True)
 class Command:
     name: str
-    role: Role | None  # None: anyone may run it, even unauthorized users (/start, /help, /whoami)
+    role: Role | None  # None: cualquiera, incluso sin acceso (/start, /help, /whoami)
     handler: Handler
-    per_minute: int | None  # optional per-command limit on top of the per-user one
+    per_minute: int | None  # límite opcional por comando, además del límite por usuario
 
 
 COMMANDS: dict[str, Command] = {}
@@ -88,7 +89,7 @@ COMMANDS: dict[str, Command] = {}
 def command(
     name: str, role: Role | None, per_minute: int | None = None
 ) -> Callable[[Handler], Handler]:
-    """Register a command. Put the module in `tgbot/commands/` and it is loaded automatically."""
+    """Registra un comando. Pon el módulo en `tgbot/commands/` y se carga solo."""
 
     def register(handler: Handler) -> Handler:
         if name in COMMANDS:
@@ -105,12 +106,12 @@ class Interaction:
     role: Role
     expires: float
     run: Callable[[str], Awaitable[Reply]]
-    edit: bool  # edit the message holding the button, or answer with a new one
+    edit: bool  # editar el mensaje del botón, o responder con uno nuevo
 
 
 @dataclass
 class Ctx:
-    """What a command handler gets. Built per update by `Runtime.dispatch`."""
+    """Lo que recibe un comando. `Runtime.dispatch` lo construye en cada update."""
 
     rt: Runtime
     command: str
@@ -161,7 +162,7 @@ class Ctx:
     def confirm(
         self, prompt: str, action: Callable[[], Awaitable[str]], role: Role | None = None
     ) -> Reply:
-        """Ask before running `action`. Only the requester, still holding `role`, can confirm."""
+        """Pregunta antes de ejecutar `action`. Solo confirma quien lo pidió, si conserva `role`."""
 
         async def run(arg: str) -> Reply:
             return Reply(await action()) if arg == "ok" else Reply(self.t("cancelled"))
@@ -175,7 +176,7 @@ class Ctx:
         )
 
     async def paginate(self, render: Callable[[int], Awaitable[tuple[Reply | str, bool]]]) -> Reply:
-        """`render(page)` returns (reply, has_next). Adds ◀ ▶ buttons bound to this user."""
+        """`render(page)` devuelve (respuesta, hay_siguiente). Añade botones ◀ ▶ de este usuario."""
 
         async def run(arg: str) -> Reply:
             page = int(arg) if arg.isdigit() and int(arg) > 0 else 1
@@ -192,7 +193,7 @@ class Ctx:
         return await run("1")
 
     def button(self, label: str, action: Callable[[], Awaitable[Reply | str]]) -> tuple[str, str]:
-        """A button that answers with a new message (e.g. details of one list item)."""
+        """Botón que responde con un mensaje nuevo (p. ej. el detalle de un elemento)."""
 
         async def run(_: str) -> Reply:
             result = await action()
@@ -251,20 +252,20 @@ class Runtime:
         extra = {"user_id": user.id, "chat_id": message.chat_id, "command": cmd.name}
         try:
             if self._rate_limited(user.id, cmd.name, cmd.per_minute):
-                log.info("rate limited", extra=extra)
+                log.info("límite de frecuencia", extra=extra)
                 await self._send(message, Reply(self.t("rate_limited")))
                 return
             if cmd.role is not None:
                 if role is None:
-                    log.info("unauthorized", extra=extra)
+                    log.info("sin autorización", extra=extra)
                     await self._send(message, Reply(self.t("unauthorized", user_id=user.id)))
                     return
                 ctx.require(cmd.role)
             text = (message.text or "").partition(" ")[2].strip()
             result = await cmd.handler(ctx, text)
-            log.info("command ok", extra={**extra, "role": role.label if role else None})
+            log.info("comando ok", extra={**extra, "role": role.label if role else None})
             await self._send(message, Reply(result) if isinstance(result, str) else result)
-        except Exception as exc:  # every failure becomes a safe, actionable message
+        except Exception as exc:  # todo fallo se convierte en un mensaje seguro y útil
             await self._send(message, Reply(self._error_text(exc, cmd.name, extra)))
         finally:
             correlation_id.reset(cid)
@@ -290,17 +291,17 @@ class Runtime:
             await query.answer(self.t("not_yours"), show_alert=True)
             return
         role = self.store.role_of(query.from_user.id)
-        if role is None or role < item.role:  # re-check: the user may have lost the role
+        if role is None or role < item.role:  # se revisa otra vez: pudo perder el rol
             self.interactions.pop(token, None)
             await query.answer(self.t("lost_permission"), show_alert=True)
             return
-        if arg in {"ok", "no"}:  # confirmations are one-shot
+        if arg in {"ok", "no"}:  # las confirmaciones son de un solo uso
             self.interactions.pop(token, None)
         await query.answer()
         edit = item.edit
         try:
             reply = await item.run(arg)
-            log.info("callback ok", extra=extra)
+            log.info("botón ok", extra=extra)
         except Exception as exc:
             reply, edit = Reply(self._error_text(exc, "callback", extra)), False
         if isinstance(query.message, Message):
@@ -312,11 +313,11 @@ class Runtime:
             params = dict(exc.params)
             if exc.key == "usage":
                 params = {"usage": t(f"cmd.{cmd}.usage"), "example": t(f"cmd.{cmd}.example")}
-            log.info("user error", extra={**extra, "error": exc.key})
+            log.info("error del usuario", extra={**extra, "error": exc.key})
             return t(exc.key, **params)
         if isinstance(exc, GitHubError):
             log.warning(
-                "github error",
+                "error de GitHub",
                 extra={**extra, "status": exc.status, "gh_request_id": exc.request_id},
             )
             key = {
@@ -332,7 +333,7 @@ class Runtime:
             if key is None:
                 key = "gh_5xx" if exc.status >= 500 else "gh_other"
             return t(key, status=exc.status, message=exc.message[:300])
-        log.exception("internal error", extra=extra)
+        log.exception("error interno", extra=extra)
         return t("internal_error", ref=correlation_id.get())
 
     def _fit(self, reply: Reply) -> tuple[str, str | None, InlineKeyboardMarkup | None]:
@@ -346,7 +347,7 @@ class Runtime:
             )
         if len(reply.text) <= self.settings.max_message_length:
             return reply.text, ParseMode.HTML, markup
-        # Cutting HTML can break tags: degrade to plain text instead.
+        # Cortar HTML puede romper etiquetas: mejor pasar a texto plano.
         plain = html.unescape(re.sub(r"<[^>]+>", "", reply.text))
         return plain[: self.settings.max_message_length - 1] + "…", None, markup
 
@@ -371,7 +372,7 @@ def build_application(
     request: BaseRequest | None = None,
     updates_request: BaseRequest | None = None,
 ) -> Application:  # type: ignore[type-arg]
-    importlib.import_module("tgbot.commands")  # registers every command module
+    importlib.import_module("tgbot.commands")  # registra todos los módulos de comandos
     rt = Runtime(settings, store, gh)
     builder = (
         Application.builder()
@@ -384,7 +385,7 @@ def build_application(
         builder = builder.get_updates_request(updates_request)
     app = builder.build()
     app.bot_data["runtime"] = rt
-    # MESSAGE only: an *edited* "/issue_new ..." must not create a second issue.
+    # Solo MESSAGE: editar un "/issue_new ..." no debe crear un segundo issue.
     for cmd in COMMANDS.values():
         app.add_handler(
             CommandHandler(cmd.name, partial(rt.dispatch, cmd), filters.UpdateType.MESSAGE)
@@ -394,7 +395,7 @@ def build_application(
 
 
 async def publish_commands(app: Application) -> None:  # type: ignore[type-arg]
-    """Show the command list in Telegram clients' "/" menu."""
+    """Muestra la lista de comandos en el menú "/" de los clientes de Telegram."""
     rt: Runtime = app.bot_data["runtime"]
     await app.bot.set_my_commands(
         [BotCommand(name, rt.t(f"cmd.{name}.desc")[:256]) for name in COMMANDS]

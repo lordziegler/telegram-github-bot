@@ -3,7 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:  # never pull_request_target: fork PRs run with a read-only token and no secrets
+  # Nunca pull_request_target: los PR de forks corren con token de solo lectura y sin secretos.
+  pull_request:
 
 permissions:
   contents: read
@@ -14,13 +15,13 @@ concurrency:
 
 jobs:
   check:
-    name: lint, types, tests (Python ${{ matrix.python }})
+    name: lint, tipos y tests (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.14"]  # oldest supported and newest
+        python: ["3.11", "3.14"]  # la más antigua soportada y la más nueva
     env:
       UV_PYTHON: ${{ matrix.python }}
     steps:
@@ -34,7 +35,7 @@ jobs:
       - run: make test
 
   image:
-    name: container build
+    name: imagen del contenedor
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -42,7 +43,7 @@ jobs:
         with:
           persist-credentials: false
       - run: docker build -t telegram-github-bot:ci .
-      - name: Image starts and rejects an empty configuration with exit code 2
+      - name: La imagen arranca y rechaza una configuración vacía con código 2
         run: |
           set +e
           docker run --rm telegram-github-bot:ci

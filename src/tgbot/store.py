@@ -1,6 +1,7 @@
-"""Runtime state in SQLite: roles granted from Telegram, extra repos, each user's selected repo.
+"""Estado en SQLite: roles concedidos desde Telegram, repos añadidos y el repo que cada
+usuario tiene seleccionado.
 
-Environment variables are the immutable baseline; this store is an overlay on top of it.
+Las variables de entorno son la base inmutable; este almacén es una capa por encima.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ class Store:
         self.db = sqlite3.connect(settings.database_path, isolation_level=None)
         self.db.executescript(_SCHEMA)
 
-    # -- access ------------------------------------------------------------------------------
+    # -- acceso ----------------------------------------------------------------------------------
 
     def role_of(self, user_id: int) -> Role | None:
         if user_id in self.settings.admin_user_ids:
@@ -63,7 +64,7 @@ class Store:
         self.db.execute("DELETE FROM selection WHERE user_id = ?", (user_id,))
 
     def users(self) -> list[tuple[int, Role, str]]:
-        """(user_id, role, source) for everyone with access; source is "env" or "db"."""
+        """(user_id, rol, origen) de todos los que tienen acceso; origen es "env" o "db"."""
         found: dict[int, tuple[int, Role, str]] = {}
         for uid in self.settings.allowed_user_ids:
             found[uid] = (uid, Role.VIEWER, "env")
@@ -73,7 +74,7 @@ class Store:
             found[uid] = (uid, Role.ADMIN, "env")
         return sorted(found.values(), key=lambda u: (-u[1], u[0]))
 
-    # -- repositories ------------------------------------------------------------------------
+    # -- repositorios ----------------------------------------------------------------------------
 
     def repos(self) -> list[str]:
         extra = [r for (r,) in self.db.execute("SELECT name FROM repos ORDER BY name")]
@@ -81,7 +82,7 @@ class Store:
         return [*self.settings.repositories, *(r for r in extra if r.lower() not in env_lower)]
 
     def find_repo(self, name: str) -> str | None:
-        """The managed repo matching `name` (GitHub names are case-insensitive)."""
+        """El repo gestionado que coincide con `name` (GitHub no distingue mayúsculas)."""
         return next((r for r in self.repos() if r.lower() == name.lower()), None)
 
     def add_repo(self, name: str) -> None:
@@ -103,7 +104,7 @@ class Store:
         )
 
     def selected(self, user_id: int) -> str:
-        """The user's selected repo, falling back to the first managed one."""
+        """El repo seleccionado por el usuario o, si no hay, el primero gestionado."""
         row = self.db.execute("SELECT repo FROM selection WHERE user_id = ?", (user_id,)).fetchone()
         if row and (repo := self.find_repo(row[0])):
             return repo

@@ -1,4 +1,5 @@
-"""Test doubles: a fake Telegram Bot API (BaseRequest) and a fake GitHub (httpx.MockTransport)."""
+"""Dobles de prueba: una Bot API de Telegram falsa (BaseRequest) y un GitHub falso
+(httpx.MockTransport)."""
 
 from __future__ import annotations
 
@@ -41,7 +42,7 @@ def make_settings(**overrides: str) -> Settings:
 
 
 class FakeTelegram(BaseRequest):
-    """Records Bot API calls and answers like Telegram would."""
+    """Registra las llamadas a la Bot API y responde como lo haría Telegram."""
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
@@ -87,7 +88,7 @@ class FakeTelegram(BaseRequest):
 
 @dataclass
 class FakeGitHub:
-    """Route table: (METHOD, path) -> JSON body, or an httpx.Response, or a list of them."""
+    """Tabla de rutas: (MÉTODO, ruta) -> cuerpo JSON, un httpx.Response o una lista de ellos."""
 
     routes: dict[tuple[str, str], Any] = field(default_factory=dict)
     requests: list[httpx.Request] = field(default_factory=list)
@@ -155,7 +156,7 @@ class Harness:
         await self.app.process_update(Update.de_json(update, self.app.bot))
 
     def buttons(self) -> list[str]:
-        """callback_data of the inline keyboard in the last sent/edited message."""
+        """callback_data del teclado inline del último mensaje enviado o editado."""
         markup = self.tg.sent()[-1].get("reply_markup") or {}
         return [b["callback_data"] for row in markup.get("inline_keyboard", []) for b in row]
 
@@ -167,7 +168,7 @@ class Harness:
 async def harness(routes: dict[tuple[str, str], Any] | None = None, **env: str) -> Harness:
     settings = make_settings(**env)
     store = Store(settings)
-    store.set_role(MAINTAINER, Role.MAINTAINER)  # env-allowed users start as viewers
+    store.set_role(MAINTAINER, Role.MAINTAINER)  # los usuarios del env empiezan como viewer
     fake_gh = FakeGitHub(routes or {})
     gh = GitHub(
         "ghp_testtoken0000000000000000000000000000",

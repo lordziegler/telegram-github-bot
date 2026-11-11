@@ -1,9 +1,9 @@
-# Extending
+# Cómo extenderlo
 
-## Add a command
+## Añadir un comando
 
-1. Create `src/tgbot/commands/<area>.py` (or add to an existing module). Every module in that
-   package is imported at startup, so nothing else needs to change.
+1. Crea `src/tgbot/commands/<area>.py` (o añádelo a un módulo existente). Todos los módulos de ese
+   paquete se importan al arrancar, así que no hace falta cambiar nada más.
 
    ```python
    from tgbot.bot import Ctx, command
@@ -13,18 +13,19 @@
    @command("reactions", role=Role.VIEWER)
    async def reactions(ctx: Ctx, text: str) -> str:
        if not text:
-           raise UserError("usage")  # shows cmd.reactions.usage + example
-       number = parse_number(text)  # validate before building a URL
+           raise UserError("usage")  # muestra cmd.reactions.usage + el ejemplo
+       number = parse_number(text)  # validar antes de construir una URL
        items = await ctx.gh.get(f"/repos/{ctx.repo}/issues/{number}/reactions")
        return ctx.t("reactions_count", number=number, count=len(items))
    ```
 
-2. Add the texts to `src/tgbot/locales/es.json`: `cmd.reactions.desc` (shown in Telegram's `/`
-   menu and in `/help`), `cmd.reactions.usage`, `cmd.reactions.example`, plus any message keys.
-   Templates are HTML; parameters are escaped for you.
+2. Añade los textos a `src/tgbot/locales/es.json`: `cmd.reactions.desc` (sale en el menú `/` de
+   Telegram y en `/help`), `cmd.reactions.usage`, `cmd.reactions.example`, y las claves de los
+   mensajes que uses (aquí `reactions_count`). Las plantillas son HTML; los parámetros se escapan
+   solos.
 
-3. Add a test. `tests/conftest.py` has a harness with the real python-telegram-bot application,
-   a fake Telegram API and a fake GitHub:
+3. Añade un test. `tests/conftest.py` tiene un arnés con la aplicación real de
+   python-telegram-bot, una API de Telegram falsa y un GitHub falso:
 
    ```python
    def test_reactions() -> None:
@@ -36,42 +37,46 @@
        asyncio.run(scenario())
    ```
 
-   `test_help_fits_in_one_message_and_every_command_is_translated` fails if a locale key is missing.
+   `test_help_fits_in_one_message_and_every_command_is_translated` falla si falta alguna clave de
+   idioma.
 
-What `@command` gives you: role check (`role=None` makes it public), per-user rate limit,
-optional `per_minute=` limit, correlation ID, logging, and the translation of `UserError` and
-GitHub errors into messages.
+Lo que te da `@command`: comprobación de rol (`role=None` lo hace público), límite de frecuencia
+por usuario, límite opcional `per_minute=`, ID de correlación, logs, y la traducción de `UserError`
+y de los errores de GitHub a mensajes.
 
-Tools inside a handler (`ctx`):
+Herramientas dentro de un handler (`ctx`):
 
 | | |
 |---|---|
-| `ctx.repo` | the user's selected repository (raises a helpful error if none) |
-| `ctx.gh.get / send / page / log_tail` | GitHub calls with auth, retries and error mapping |
-| `ctx.t(key, **params)` | translated HTML |
-| `ctx.require(Role.ADMIN)` | extra check inside a command (see `/review`) |
-| `ctx.confirm(prompt, action)` | Confirm/Cancel buttons; `action` runs only on Confirm by the same user |
-| `ctx.paginate(render)` | ◀ ▶ buttons; `render(page)` returns `(text or Reply, has_next)` |
-| `ctx.button(label, action)` | a button that answers with a new message |
-| `ctx.date(iso)` | a GitHub timestamp in `DEFAULT_TIMEZONE` |
+| `ctx.repo` | el repositorio seleccionado por el usuario (da un error claro si no hay ninguno) |
+| `ctx.gh.get / send / page / log_tail` | llamadas a GitHub con autenticación, reintentos y errores traducidos |
+| `ctx.t(clave, **params)` | HTML traducido |
+| `ctx.require(Role.ADMIN)` | comprobación extra dentro de un comando (ver `/review`) |
+| `ctx.confirm(texto, accion)` | botones Confirmar/Cancelar; `accion` solo se ejecuta si confirma el mismo usuario |
+| `ctx.paginate(render)` | botones ◀ ▶; `render(pagina)` devuelve `(texto o Reply, hay_siguiente)` |
+| `ctx.button(texto, accion)` | botón que responde con un mensaje nuevo |
+| `ctx.date(iso)` | una fecha de GitHub en `DEFAULT_TIMEZONE` |
 
-Rules: validate every user value with the parsers in `domain.py` before it reaches a URL; use
-`ctx.confirm` for anything irreversible or done on someone's behalf; never log message text.
+Reglas: valida cada valor del usuario con los validadores de `domain.py` antes de que llegue a una
+URL; usa `ctx.confirm` para todo lo irreversible o lo que se hace en nombre de otro; nunca
+registres en el log el texto de los mensajes.
 
-## Add a language
+## Añadir un idioma
 
-Copy `src/tgbot/locales/es.json` to `<code>.json`, translate the values (keep the `{placeholders}`
-and the HTML tags), and set `BOT_LOCALE=<code>`.
+Copia `src/tgbot/locales/es.json` a `<codigo>.json`, traduce los valores (conserva los
+`{marcadores}` y las etiquetas HTML) y define `BOT_LOCALE=<codigo>`.
 
-## Another Git provider
+## Otro proveedor Git
 
-Commands call `ctx.gh` (the GitHub client) directly. To support GitLab or Gitea, extract the
-calls the commands make into a small interface, implement it per provider, and choose the
-implementation in `main.py`. This was deliberately not done before a second provider exists.
+Los comandos llaman directamente a `ctx.gh` (el cliente de GitHub). Para soportar GitLab o Gitea,
+extrae a una pequeña interfaz las llamadas que hacen los comandos, implementa una por proveedor y
+elige la implementación en `main.py`. A propósito no se hizo antes de que exista un segundo
+proveedor.
 
-## Future extensions
+## Extensiones futuras
 
-Left out of this version on purpose: deleting repositories, branches or releases; force pushes;
-branch protection changes; merging PRs; notifications from GitHub webhooks (would bring back a
-`GITHUB_WEBHOOK_SECRET` and an HTTP endpoint); multiple App installations (repositories across
-several owners with one App). Destructive additions should be admin-only and use `ctx.confirm`.
+Fuera de esta versión a propósito: borrar repositorios, ramas o releases; force push; cambios en
+protecciones de rama; fusionar PRs; notificaciones desde webhooks de GitHub (traería de vuelta un
+`GITHUB_WEBHOOK_SECRET` y un endpoint HTTP); varias instalaciones de una App (repositorios de
+varios propietarios con una sola App). Lo destructivo que se añada debe ser solo para admin y usar
+`ctx.confirm`.

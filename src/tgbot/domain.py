@@ -1,4 +1,7 @@
-"""Pure rules: roles, input validation and rate limiting. No I/O, no Telegram, no GitHub."""
+"""Reglas puras: roles, validación de entradas y límite de frecuencia.
+
+Sin E/S, sin Telegram y sin GitHub.
+"""
 
 from __future__ import annotations
 
@@ -27,7 +30,8 @@ class Role(IntEnum):
 
 
 class UserError(Exception):
-    """An error caused by user input. `key` is a locale key, kwargs are its params."""
+    """Error causado por la entrada del usuario. `key` es una clave de traducción; los kwargs,
+    sus parámetros."""
 
     def __init__(self, key: str, **params: object) -> None:
         super().__init__(key)
@@ -35,7 +39,8 @@ class UserError(Exception):
         self.params = params
 
 
-# GitHub: owner 1-39 alnum/hyphen; repo name alnum . _ - up to 100, never "." or "..".
+# GitHub: owner de 1-39 caracteres (alfanuméricos o guion); nombre de repo con alfanuméricos
+# y . _ - hasta 100, nunca "." ni "..".
 _REPO = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/([A-Za-z0-9._-]{1,100})$")
 _USER = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 _SHA = re.compile(r"^[0-9a-fA-F]{7,40}$")
@@ -73,9 +78,9 @@ def parse_ref(value: str) -> str:
 
 
 def parse_ci_target(value: str) -> int | str:
-    """`42` -> PR number, `abc1234` -> commit SHA."""
+    """`42` -> número de PR, `abc1234` -> SHA de un commit."""
     v = value.strip().lstrip("#")
-    # ponytail: up to 6 digits is a PR number; an all-digit 7+ char SHA is treated as a SHA.
+    # ponytail: hasta 6 dígitos es un número de PR; 7 o más dígitos se tratan como SHA.
     if v.isdigit() and len(v) <= 6:
         return parse_number(v)
     if _SHA.match(v):
@@ -96,13 +101,13 @@ def parse_inputs(tokens: list[str]) -> dict[str, str]:
         if not sep or not _INPUT_KEY.match(key):
             raise UserError("bad_input", value=token)
         inputs[key] = clean_text(val, 1000)
-    if len(inputs) > 25:  # GitHub's documented maximum for workflow_dispatch inputs
+    if len(inputs) > 25:  # máximo documentado por GitHub para workflow_dispatch
         raise UserError("too_many_inputs")
     return inputs
 
 
 def clean_text(value: str, limit: int) -> str:
-    """Strip control characters (keeps \\t and \\n) and enforce a length limit."""
+    """Quita caracteres de control (conserva \\t y \\n) y aplica un límite de longitud."""
     text = _CONTROL.sub("", value).strip()
     if len(text) > limit:
         raise UserError("too_long", limit=limit)
@@ -110,9 +115,10 @@ def clean_text(value: str, limit: int) -> str:
 
 
 class RateLimiter:
-    """Sliding-window limiter, in memory."""
+    """Limitador de ventana deslizante, en memoria."""
 
-    # ponytail: per-process state; fine because Telegram long polling allows one instance anyway.
+    # ponytail: estado por proceso; basta porque el long polling de Telegram admite una sola
+    # instancia de todos modos.
     def __init__(self, clock: Callable[[], float] = time.monotonic, window: float = 60.0) -> None:
         self._clock = clock
         self._window = window

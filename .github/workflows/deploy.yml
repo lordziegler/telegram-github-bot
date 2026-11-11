@@ -1,12 +1,12 @@
-name: Deploy
+name: Desplegar
 
-# Manual only. Connects to your server over SSH and runs Docker Compose there.
-# The bot's own secrets (.env) live on the server, not in GitHub.
+# Solo manual. Se conecta a tu servidor por SSH y ejecuta Docker Compose allí.
+# Los secretos del bot (.env) viven en el servidor, no en GitHub.
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: "deploy: check out the selected branch/tag and rebuild · restart: restart the container"
+        description: "deploy: usa la rama o tag elegido y reconstruye · restart: reinicia el contenedor"
         type: choice
         options: [deploy, restart]
         default: deploy
@@ -22,9 +22,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production  # add required reviewers to this environment in the repo settings
+    environment: production  # añade revisores obligatorios a este environment en los ajustes
     steps:
-      - name: Configure SSH (pinned host key, no trust-on-first-use)
+      - name: Configurar SSH (clave del host fijada, sin confiar a ciegas la primera vez)
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -34,7 +34,7 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Run on the server
+      - name: Ejecutar en el servidor
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -58,6 +58,6 @@ jobs:
           fi
           docker compose ps
           REMOTE
-      - name: Remove the key
+      - name: Borrar la clave
         if: always()
         run: rm -f ~/.ssh/id_deploy

@@ -1,4 +1,5 @@
-"""Entry point: `python -m tgbot` runs the bot, `python -m tgbot healthcheck` checks liveness."""
+"""Punto de entrada: `python -m tgbot` arranca el bot; `python -m tgbot healthcheck`
+comprueba que sigue vivo."""
 
 from __future__ import annotations
 
@@ -25,8 +26,11 @@ from tgbot.store import Store
 log = logging.getLogger("tgbot")
 HEARTBEAT = Path(tempfile.gettempdir()) / "tgbot.heartbeat"
 HEARTBEAT_EVERY = 30
-WEBHOOK_PORT = 8080  # inside the container; publish/proxy it as you like
-UPDATES = [Update.MESSAGE, Update.CALLBACK_QUERY]  # no edited messages: no double execution
+WEBHOOK_PORT = 8080  # dentro del contenedor; publícalo o pon un proxy
+UPDATES = [
+    Update.MESSAGE,
+    Update.CALLBACK_QUERY,
+]  # sin mensajes editados: nada se ejecuta dos veces
 
 
 def make_github(settings: Settings) -> GitHub:
@@ -35,7 +39,7 @@ def make_github(settings: Settings) -> GitHub:
             import jwt  # noqa: F401
         except ImportError:
             raise ConfigError(
-                "GitHub App auth needs the extra: pip install 'telegram-github-bot[github-app]'"
+                "GitHub App necesita el extra: pip install 'telegram-github-bot[github-app]'"
             ) from None
         return GitHub(
             app_id=settings.github_app_id,
@@ -62,7 +66,7 @@ def build(settings: Settings) -> Application:  # type: ignore[type-arg]
         await publish_commands(app)
         tasks.append(asyncio.create_task(_heartbeat(app.bot_data["runtime"])))
         me = app.bot.username
-        log.info("bot started", extra={"bot": me, "repos": len(store.repos())})
+        log.info("bot arrancado", extra={"bot": me, "repos": len(store.repos())})
 
     async def post_shutdown(_: Application) -> None:  # type: ignore[type-arg]
         for task in tasks:
@@ -72,7 +76,7 @@ def build(settings: Settings) -> Application:  # type: ignore[type-arg]
         await gh.aclose()
         store.db.close()
         HEARTBEAT.unlink(missing_ok=True)
-        log.info("bot stopped")
+        log.info("bot detenido")
 
     app.post_init = post_init
     app.post_shutdown = post_shutdown
@@ -94,21 +98,21 @@ def main() -> None:
         settings = load_settings(os.environ)
     except ConfigError as exc:
         print(exc, file=sys.stderr)
-        print("See .env.example and docs/configuration.md", file=sys.stderr)
+        print("Consulta .env.example y docs/configuration.md", file=sys.stderr)
         sys.exit(2)
     setup_logging(settings.log_level, settings.secrets())
     if settings.database_path == ":memory:":
         log.warning(
-            "DATABASE_URL is empty: roles and repos added from Telegram are lost on restart"
+            "DATABASE_URL vacío: los roles y repos añadidos desde Telegram se pierden al reiniciar"
         )
-    # run_polling / run_webhook stop cleanly on SIGINT, SIGTERM and SIGABRT.
-    # Anything escaping goes through the redacting logger: PTB's InvalidToken message
-    # contains the token itself, and a bare traceback on stderr would leak it.
+    # run_polling / run_webhook se detienen limpiamente con SIGINT, SIGTERM y SIGABRT.
+    # Cualquier error que escape pasa por el logger que oculta secretos: el mensaje de
+    # InvalidToken de PTB contiene el propio token, y un traceback en stderr lo filtraría.
     try:
         app = build(settings)
         if settings.webhook_url:
             app.run_webhook(
-                listen="0.0.0.0",  # noqa: S104 - container port; TLS terminates at the proxy
+                listen="0.0.0.0",  # noqa: S104 - puerto del contenedor; TLS lo pone el proxy
                 port=WEBHOOK_PORT,
                 url_path=urlparse(settings.webhook_url).path.lstrip("/"),
                 webhook_url=settings.webhook_url,
@@ -121,8 +125,8 @@ def main() -> None:
         log.error(str(exc))
         sys.exit(2)
     except InvalidToken:
-        log.error("Telegram rejected TELEGRAM_BOT_TOKEN: check it with @BotFather")
+        log.error("Telegram rechazó TELEGRAM_BOT_TOKEN: revísalo con @BotFather")
         sys.exit(1)
     except Exception:
-        log.exception("bot crashed")
+        log.exception("el bot se cayó")
         sys.exit(1)

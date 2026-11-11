@@ -37,7 +37,7 @@ def test_valid_env() -> None:
         ({"DEFAULT_REPOSITORIES": "not-a-repo"}, "DEFAULT_REPOSITORIES"),
         ({"TELEGRAM_WEBHOOK_URL": "https://bot.example.com/hook"}, "TELEGRAM_WEBHOOK_SECRET"),
         ({"TELEGRAM_WEBHOOK_URL": "http://x/hook", "TELEGRAM_WEBHOOK_SECRET": "s"}, "https"),
-        ({"GITHUB_APP_ID": "1"}, "together"),
+        ({"GITHUB_APP_ID": "1"}, "juntos"),
         ({"TELEGRAM_ALLOWED_USER_IDS": "12,abc"}, "TELEGRAM_ALLOWED_USER_IDS"),
         ({"DEFAULT_TIMEZONE": "Mars/Base"}, "DEFAULT_TIMEZONE"),
         ({"DATABASE_URL": "postgres://x"}, "sqlite"),
@@ -71,7 +71,7 @@ def test_parse_repo_accepts_real_names() -> None:
 def test_parse_ci_target() -> None:
     assert parse_ci_target("#42") == 42
     assert parse_ci_target("ABCDEF1") == "abcdef1"
-    assert parse_ci_target("1234567") == "1234567"  # 7+ digits: a SHA
+    assert parse_ci_target("1234567") == "1234567"  # 7 o más dígitos: un SHA
     with pytest.raises(UserError):
         parse_ci_target("main")
 

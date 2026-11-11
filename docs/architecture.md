@@ -1,94 +1,100 @@
-# Architecture
+# Arquitectura
 
-The simplest layering that keeps Telegram, GitHub and the rules apart. One module per concern,
-no frameworks, no dependency-injection container: objects are built once in `main.py` and
-passed down.
+La separación en capas más simple que mantiene aparte Telegram, GitHub y las reglas. Un módulo
+por responsabilidad, sin frameworks ni contenedor de inyección de dependencias: los objetos se
+crean una vez en `main.py` y se pasan hacia abajo.
 
 ```text
 src/tgbot/
-├── domain.py        rules: Role, input parsers/validators, UserError, RateLimiter   (no I/O)
-├── config.py        environment → validated Settings; every problem reported at once
-├── log.py           JSON logs, correlation ID, secret redaction at the single output point
-├── store.py         SQLite overlay: roles granted from chat, extra repos, selected repo
-├── github.py        GitHub REST client: PAT or App auth, retries, error mapping, paging
-├── bot.py           Telegram adapter: command registry, dispatch, confirmations, pagination
-├── commands/        one module per area; every @command is auto-registered
+├── domain.py        reglas: Role, validadores de entrada, UserError, RateLimiter   (sin E/S)
+├── config.py        entorno → Settings validados; informa de todos los problemas a la vez
+├── log.py           logs JSON, ID de correlación, ocultación de secretos en el único punto de salida
+├── store.py         capa SQLite: roles concedidos desde el chat, repos extra, repo seleccionado
+├── github.py        cliente REST de GitHub: auth con PAT o App, reintentos, errores, paginación
+├── bot.py           adaptador de Telegram: registro de comandos, dispatch, confirmaciones, páginas
+├── commands/        un módulo por área; cada @command se registra solo
 │   ├── general.py   /start /help /whoami /repos /repo
 │   ├── issues.py    /issues /issue /issue_new /comment /close /reopen /label /assign
 │   ├── pulls.py     /prs /pr /review /ci
 │   ├── actions.py   /run /runs
 │   └── admin.py     /admin
-├── locales/es.json  every user-facing string
-└── main.py          wiring, polling or webhook, heartbeat, healthcheck
+├── locales/es.json  todos los textos que ve el usuario
+└── main.py          montaje, polling o webhook, heartbeat, healthcheck
 ```
 
-How this maps to the layers usually asked for:
+Correspondencia con las capas que se suelen pedir:
 
-| Layer | Here |
+| Capa | Aquí |
 |---|---|
 | domain | `domain.py` |
-| application (orchestration) | `bot.Runtime.dispatch` + the command functions |
+| application (orquestación) | `bot.Runtime.dispatch` + las funciones de comando |
 | adapters/telegram | `bot.py`, `commands/`, `locales/` |
 | adapters/github | `github.py` |
 | infrastructure/config, logging, persistence | `config.py`, `log.py`, `store.py` |
 
-## Request flow
+## Flujo de una petición
 
 ```text
-Telegram update
-  → CommandHandler (MESSAGE updates only)          python-telegram-bot
-  → Runtime.dispatch(cmd)                           bot.py — the only entry point
-      1. chat allowed? (private, or in TELEGRAM_ALLOWED_CHAT_IDS) — otherwise ignore silently
-      2. correlation ID = "u<update_id>" in a ContextVar, added to every log line
-      3. rate limit: per user (RATE_LIMIT_REQUESTS_PER_MINUTE) and per command (per_minute=)
-      4. role check against the command's minimum role
-      5. handler(ctx, text) → Reply (text + optional buttons)
-      6. any exception → actionable message (UserError / GitHubError) or "internal error, ref uN"
-  → reply_text (HTML); over MAX_MESSAGE_LENGTH it degrades to plain text instead of cutting tags
+Update de Telegram
+  → CommandHandler (solo updates MESSAGE)            python-telegram-bot
+  → Runtime.dispatch(cmd)                            bot.py — la única puerta de entrada
+      1. ¿chat permitido? (privado, o en TELEGRAM_ALLOWED_CHAT_IDS) — si no, se ignora sin responder
+      2. ID de correlación = "u<update_id>" en una ContextVar; aparece en cada línea de log
+      3. límite de frecuencia: por usuario (RATE_LIMIT_REQUESTS_PER_MINUTE) y por comando (per_minute=)
+      4. comprobación del rol mínimo del comando
+      5. handler(ctx, text) → Reply (texto + botones opcionales)
+      6. cualquier excepción → mensaje útil (UserError / GitHubError) o "error interno, ref uN"
+  → reply_text (HTML); si supera MAX_MESSAGE_LENGTH pasa a texto plano en vez de cortar etiquetas
 ```
 
-Buttons (confirmations, pagination, run details) carry only a random token in `callback_data`
-(Telegram allows 64 bytes). The action lives in memory, bound to the user who created it, the
-minimum role, and an expiry (5 minutes for confirmations, 30 for lists). On every press the bot
-checks presser == owner and re-reads the presser's role.
+Los botones (confirmaciones, paginación, detalle de ejecuciones) solo llevan un token aleatorio
+en `callback_data` (Telegram admite 64 bytes). La acción vive en memoria, ligada al usuario que la
+creó, al rol mínimo y a una caducidad (5 minutos para confirmaciones, 30 para listas). En cada
+pulsación el bot comprueba que quien pulsa es el dueño y vuelve a leer su rol.
 
-## Decisions taken where the brief was ambiguous
+## Decisiones tomadas donde el enunciado era ambiguo
 
-- **Environment is the baseline, SQLite is an overlay.** Admins in `TELEGRAM_ADMIN_USER_IDS`, users
-  in `TELEGRAM_ALLOWED_USER_IDS` and repos in `DEFAULT_REPOSITORIES` cannot be removed or demoted
-  from chat; this makes lockout impossible. Everything added with `/admin` goes to SQLite.
-- **Users from `TELEGRAM_ALLOWED_USER_IDS` start as `viewer`.** Least privilege; admins promote.
-- **An allowed group does not grant access to its members.** The chat must be allowed *and* the
-  user must have a role.
-- **Role matrix.** `close`/`reopen` are maintainer actions with confirmation. `review approve` and
-  `request_changes` are admin-only because GitHub records them as the token's owner and they can
-  satisfy branch protection. `/run` is admin-only: it executes code with the repository's secrets.
-- **`/label` and `/assign` also remove** (`-name`), instead of adding two more commands.
-- **Run logs** are shown from a button in `/runs`: jobs, failed steps and the last 20 log lines of
-  the first failed job, streamed so a huge log never sits in memory.
-- **`/ci`** combines commit statuses with check runs; fine-grained PATs cannot read check runs, so
-  on 403 it falls back to Actions runs for the commit. A number of up to 6 digits is a PR; 7–40
-  hex characters are a SHA.
-- **Retries.** Reads retry on network errors and 5xx with exponential backoff; writes (POST/PATCH)
-  retry only when GitHub certainly did not process them (connection failed, or rate limited),
-  so a timeout can never create a duplicate issue. Total wait is capped at 20 s because a person
-  is waiting; GitHub's `retry-after` / `x-ratelimit-reset` are honoured within that budget.
-- **Edited messages are ignored** (`allowed_updates` excludes them and handlers filter on MESSAGE):
-  editing `/issue_new …` must not create a second issue.
-- **`GITHUB_WEBHOOK_SECRET` was dropped** from the configuration: nothing in this version receives
-  GitHub webhooks. `BOT_LOCALE` was added so a translation is a new JSON file.
-- **One instance.** Telegram allows a single long-polling consumer per token, so in-memory state
-  (rate limiter, pending buttons) is enough. Pending buttons are lost on restart; users repeat
-  the command.
+- **El entorno es la base; SQLite es una capa encima.** Los admins de `TELEGRAM_ADMIN_USER_IDS`,
+  los usuarios de `TELEGRAM_ALLOWED_USER_IDS` y los repos de `DEFAULT_REPOSITORIES` no se pueden
+  quitar ni degradar desde el chat; así es imposible quedarse sin acceso. Lo que se añade con
+  `/admin` va a SQLite.
+- **Los usuarios de `TELEGRAM_ALLOWED_USER_IDS` empiezan como `viewer`.** Mínimo privilegio; los
+  admins los promocionan.
+- **Un grupo permitido no da acceso a sus miembros.** El chat tiene que estar permitido *y* el
+  usuario tiene que tener un rol.
+- **Matriz de roles.** `close`/`reopen` son de maintainer, con confirmación. `review approve` y
+  `request_changes` son solo de admin porque GitHub las registra a nombre del dueño del token y
+  pueden cumplir una protección de rama. `/run` es solo de admin: ejecuta código con los secretos
+  del repositorio.
+- **`/label` y `/assign` también quitan** (`-nombre`), en vez de añadir dos comandos más.
+- **Los logs de una ejecución** se ven con un botón en `/runs`: jobs, pasos fallidos y las últimas
+  20 líneas del log del primer job fallido, leído en streaming para que un log enorme nunca quede
+  entero en memoria.
+- **`/ci`** combina los estados del commit con los check runs; los PAT fine-grained no pueden leer
+  check runs, así que ante un 403 usa las ejecuciones de Actions del commit. Un número de hasta 6
+  dígitos es un PR; de 7 a 40 caracteres hexadecimales, un SHA.
+- **Reintentos.** Las lecturas se reintentan ante errores de red y 5xx con espera exponencial; las
+  escrituras (POST/PATCH) solo cuando es seguro que GitHub no las procesó (no hubo conexión, o
+  hubo límite de frecuencia), así que un timeout nunca crea un issue duplicado. La espera total se
+  limita a 20 s porque hay una persona esperando; dentro de ese margen se respetan `retry-after`
+  y `x-ratelimit-reset` de GitHub.
+- **Los mensajes editados se ignoran** (`allowed_updates` los excluye y los handlers filtran por
+  MESSAGE): editar `/issue_new …` no debe crear un segundo issue.
+- **Se quitó `GITHUB_WEBHOOK_SECRET`** de la configuración: nada en esta versión recibe webhooks de
+  GitHub. Se añadió `BOT_LOCALE` para que una traducción sea un archivo JSON nuevo.
+- **Una sola instancia.** Telegram solo admite un consumidor de long polling por token, así que el
+  estado en memoria (limitador, botones pendientes) basta. Los botones pendientes se pierden al
+  reiniciar; el usuario repite el comando.
 
-## Simplifications with a known ceiling
+## Simplificaciones con un techo conocido
 
-Marked in the code with `ponytail:` comments.
+Marcadas en el código con comentarios `ponytail:`.
 
-- No `Protocol` interfaces: GitHub has one implementation and tests swap its HTTP transport
-  (`httpx.MockTransport`) instead. Add an interface when a second provider (GitLab, Gitea) appears.
-- No entity classes for issues/PRs: GitHub's JSON is rendered directly. Add them when a second
-  provider needs a common shape.
-- `/issues` filters pull requests out after paging, so a page can be short. Use the search API if
-  that matters.
-- The rate limiter and pending buttons are per process (see "One instance").
+- Sin interfaces `Protocol`: GitHub tiene una sola implementación y los tests cambian su transporte
+  HTTP (`httpx.MockTransport`). Añadir una interfaz cuando aparezca un segundo proveedor (GitLab,
+  Gitea).
+- Sin clases de entidad para issues/PRs: el JSON de GitHub se muestra directamente. Añadirlas
+  cuando un segundo proveedor necesite una forma común.
+- `/issues` descarta los pull requests después de paginar, así que una página puede salir corta.
+  Usar la API de búsqueda si importa.
+- El limitador y los botones pendientes son por proceso (ver «Una sola instancia»).

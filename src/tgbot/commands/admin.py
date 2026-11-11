@@ -1,4 +1,4 @@
-"""/admin: users, roles and managed repositories. Runtime changes live in the SQLite store."""
+"""/admin: usuarios, roles y repositorios gestionados. Los cambios se guardan en SQLite."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ async def admin(ctx: Ctx, text: str) -> Reply | str:
             return ctx.confirm(ctx.t("confirm_role", user_id=user_id, role=role.label), set_role)
         case ["repo", "add", name]:
             repo = parse_repo(name)
-            info = await ctx.gh.get(f"/repos/{repo}")  # proves the token can reach it
+            info = await ctx.gh.get(f"/repos/{repo}")  # comprueba que el token llega a él
             ctx.store.add_repo(info["full_name"])
             return ctx.t("repo_added", repo=info["full_name"])
         case ["repo", "remove", name]:

@@ -1,7 +1,7 @@
 [project]
 name = "telegram-github-bot"
 version = "0.1.0"
-description = "Self-hostable Telegram bot to manage GitHub repositories (issues, PRs, CI, Actions) with role-based access."
+description = "Bot de Telegram autoalojable para gestionar repositorios de GitHub (issues, PRs, CI, Actions) con acceso por roles."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"

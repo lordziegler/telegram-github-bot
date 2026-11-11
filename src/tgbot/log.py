@@ -1,4 +1,5 @@
-"""Structured JSON logging with a correlation ID and secret redaction at the single output point."""
+"""Logs estructurados en JSON, con ID de correlación y ocultación de secretos en el único
+punto de salida."""
 
 from __future__ import annotations
 
@@ -12,10 +13,10 @@ from datetime import UTC, datetime
 
 correlation_id: ContextVar[str] = ContextVar("correlation_id", default="-")
 
-# Tokens that may appear without being in the config (e.g. App tokens minted at runtime).
+# Tokens que pueden aparecer sin estar en la configuración (p. ej. los que crea la App).
 _TOKEN_PATTERNS = re.compile(
-    r"bot\d+:[A-Za-z0-9_-]{20,}"  # Telegram token inside Bot API URLs
-    r"|\bgh[pousr]_[A-Za-z0-9_.-]{10,}"  # GitHub tokens, incl. the ghs_APPID_JWT format
+    r"bot\d+:[A-Za-z0-9_-]{20,}"  # token de Telegram dentro de URLs de la Bot API
+    r"|\bgh[pousr]_[A-Za-z0-9_.-]{10,}"  # tokens de GitHub, incluido ghs_APPID_JWT
     r"|\bgithub_pat_[A-Za-z0-9_]{20,}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
     re.DOTALL,
@@ -53,6 +54,6 @@ def setup_logging(level: str, secrets: Iterable[str]) -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level)
-    # httpx logs every request URL at INFO, and Bot API URLs embed the bot token.
+    # httpx registra cada URL en INFO, y las URLs de la Bot API contienen el token del bot.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)

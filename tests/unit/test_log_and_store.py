@@ -57,7 +57,7 @@ def store() -> Store:
 
 def test_roles_overlay_env(store: Store) -> None:
     assert store.role_of(ADMIN) is Role.ADMIN
-    assert store.role_of(VIEWER) is Role.VIEWER  # env-allowed default
+    assert store.role_of(VIEWER) is Role.VIEWER  # por defecto para usuarios del env
     assert store.role_of(424242) is None
     store.set_role(VIEWER, Role.MAINTAINER)
     assert store.role_of(VIEWER) is Role.MAINTAINER
@@ -80,7 +80,8 @@ def test_repos_and_selection(store: Store) -> None:
     store.select(VIEWER, "octo-org/web")
     assert store.selected(VIEWER) == "octo-org/web"
     store.remove_repo("Octo-Org/Web")
-    assert store.selected(VIEWER) == "octo-org/api"  # falls back when the selection is gone
+    # vuelve al primero si la selección ya no existe
+    assert store.selected(VIEWER) == "octo-org/api"
     with pytest.raises(UserError, match="env_repo_locked"):
         store.remove_repo("octo-org/api")
 

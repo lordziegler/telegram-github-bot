@@ -1,4 +1,4 @@
-"""Every module in this package is imported at startup, so its @command functions register."""
+"""Todos los módulos de este paquete se importan al arrancar, y así se registran sus @command."""
 
 import importlib
 import pkgutil

@@ -1,4 +1,5 @@
-"""Issues (and the issue-level actions that also apply to PRs: comment, close, reopen, labels)."""
+"""Issues (y las acciones de issue que también valen para PRs: comentar, cerrar, reabrir,
+etiquetar)."""
 
 from __future__ import annotations
 
@@ -46,8 +47,9 @@ async def issues(ctx: Ctx, text: str) -> Reply:
 
     async def render(page: int) -> tuple[str, bool]:
         items, has_next = await ctx.gh.page(f"/repos/{repo}/issues", page, state=state, **params)
-        # The issues endpoint also returns pull requests; they are listed by /prs.
-        # ponytail: filtering after paging can leave short pages; use the search API if it matters.
+        # El endpoint de issues también devuelve pull requests; esos los lista /prs.
+        # ponytail: filtrar tras paginar puede dejar páginas cortas; si importa, usar
+        # la API de búsqueda.
         found = [i for i in items if "pull_request" not in i]
         lines = [ctx.t("issues_header", repo=repo, state=Html(ctx.t(f"state_{state}")), page=page)]
         lines += [issue_line(ctx, i) for i in found] or [ctx.t("empty_page")]
@@ -106,7 +108,7 @@ async def _set_state(ctx: Ctx, text: str, state: str) -> Reply:
     if not text:
         raise UserError("usage")
     number, repo = parse_number(text), ctx.repo
-    i = await ctx.gh.get(f"/repos/{repo}/issues/{number}")  # show what is about to change
+    i = await ctx.gh.get(f"/repos/{repo}/issues/{number}")  # para mostrar qué se va a cambiar
     if i["state"] == state:
         raise UserError(f"already_{state}", number=number)
 
@@ -128,7 +130,7 @@ async def reopen(ctx: Ctx, text: str) -> Reply:
 
 
 def _split_changes(text: str, parse: Any) -> tuple[int, list[str], list[str]]:
-    """`12 a,b,-c` -> (12, [a, b], [c]). A leading '-' removes."""
+    """`12 a,b,-c` -> (12, [a, b], [c]). Un '-' delante significa quitar."""
     number_text, _, rest = text.partition(" ")
     names = [n.strip() for n in rest.split(",") if n.strip()]
     if not number_text or not names:
@@ -160,7 +162,7 @@ async def assign(ctx: Ctx, text: str) -> str:
     if remove:
         i = await ctx.gh.send("DELETE", base, {"assignees": remove})
     now = [a["login"] for a in i.get("assignees", [])]
-    # GitHub silently ignores assignees without access to the repository.
+    # GitHub ignora sin avisar a quien no tiene acceso al repositorio.
     ignored = [u for u in add if u.lower() not in {n.lower() for n in now}]
     reply = ctx.t("assignees_now", number=number, assignees=", ".join(now) or "-")
     if ignored:

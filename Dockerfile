@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
     PATH=/app/.venv/bin:$PATH
 WORKDIR /app
 
-# Dependencies first (cached layer), then the project itself.
+# Primero las dependencias (capa en caché) y después el proyecto.
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --locked --no-dev --all-extras --no-install-project
 COPY src ./src
@@ -21,5 +21,5 @@ VOLUME ["/data"]
 ENV DATABASE_URL=sqlite:////data/bot.db
 EXPOSE 8080
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s CMD ["python", "-m", "tgbot", "healthcheck"]
-# Exec form: Python is PID 1 and receives SIGTERM for a clean shutdown.
+# Forma exec: Python es el PID 1 y recibe SIGTERM para apagarse limpiamente.
 CMD ["python", "-m", "tgbot"]

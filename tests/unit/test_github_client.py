@@ -47,7 +47,7 @@ def test_post_is_not_retried_on_5xx_or_read_errors() -> None:
         gh = make([failure, httpx.Response(201, json={})], seen, [])
         with pytest.raises(GitHubError):
             asyncio.run(gh.send("POST", "/repos/o/r/issues", {"title": "t"}))
-        assert len(seen) == 1  # retrying could create a duplicate issue
+        assert len(seen) == 1  # reintentar podría duplicar el issue
 
 
 def test_post_is_retried_when_nothing_was_sent() -> None:
