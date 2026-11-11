@@ -1,0 +1,41 @@
+name: Publish image
+
+# Optional: publishes ghcr.io/<owner>/<repo> only when you push a v* tag or run it by hand.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write  # GITHUB_TOKEN is enough for GHCR; no PAT needed
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and push
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${REPOSITORY,,}"
+          tag="${REF_NAME//[^A-Za-z0-9_.-]/-}"
+          printf '%s' "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker build -t "$image:$tag" .
+          docker push "$image:$tag"
+          if [ "$REF_TYPE" = tag ]; then
+            docker tag "$image:$tag" "$image:latest"
+            docker push "$image:latest"
+          fi
+          docker logout ghcr.io

@@ -1,0 +1,63 @@
+name: Deploy
+
+# Manual only. Connects to your server over SSH and runs Docker Compose there.
+# The bot's own secrets (.env) live on the server, not in GitHub.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "deploy: check out the selected branch/tag and rebuild · restart: restart the container"
+        type: choice
+        options: [deploy, restart]
+        default: deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production  # add required reviewers to this environment in the repo settings
+    steps:
+      - name: Configure SSH (pinned host key, no trust-on-first-use)
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Run on the server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/telegram-github-bot' }}
+          ACTION: ${{ inputs.action }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "bash -s -- $(printf '%q ' "$ACTION" "$SHA" "$DEPLOY_PATH")" <<'REMOTE'
+          set -euo pipefail
+          action="$1"; sha="$2"; dir="$3"
+          cd "$dir"
+          if [ "$action" = deploy ]; then
+            git fetch --quiet origin
+            git checkout --quiet --detach "$sha"
+            docker compose up -d --build --remove-orphans --wait --wait-timeout 180
+          else
+            docker compose restart bot
+          fi
+          docker compose ps
+          REMOTE
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

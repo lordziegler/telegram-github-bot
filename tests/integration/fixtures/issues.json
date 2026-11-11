@@ -1,0 +1,23 @@
+[
+  {
+    "number": 5,
+    "title": "Login returns <500>",
+    "html_url": "https://github.com/octo-org/api/issues/5",
+    "state": "open",
+    "user": {"login": "octocat"},
+    "labels": [{"name": "bug"}],
+    "assignees": [],
+    "comments": 1,
+    "created_at": "2026-11-02T08:30:00Z",
+    "body": "Steps: click **Login**"
+  },
+  {
+    "number": 6,
+    "title": "A pull request shows up in the issues endpoint",
+    "html_url": "https://github.com/octo-org/api/pull/6",
+    "state": "open",
+    "user": {"login": "hubot"},
+    "labels": [],
+    "pull_request": {"url": "https://api.github.com/repos/octo-org/api/pulls/6"}
+  }
+]

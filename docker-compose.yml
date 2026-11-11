@@ -1,0 +1,23 @@
+services:
+  bot:
+    build: .
+    image: telegram-github-bot:local
+    env_file: .env
+    environment:
+      # An empty DATABASE_URL in .env would otherwise mean "in memory" inside the container.
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/bot.db}
+    volumes:
+      - bot-data:/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Webhook mode only: expose the port to your TLS reverse proxy (never directly).
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+
+volumes:
+  bot-data:
