@@ -16,7 +16,8 @@ src/tgbot/
 │   ├── general.py   /start /help /whoami /repos /repo
 │   ├── issues.py    /issues /issue /issue_new /comment /close /reopen /label /assign
 │   ├── pulls.py     /prs /pr /review /ci
-│   ├── actions.py   /run /runs
+│   ├── actions.py   /run /runs /workflows (+ cancelar, reintentar, aprobar despliegues)
+│   ├── secrets.py   /secret
 │   └── admin.py     /admin
 ├── locales/es.json  todos los textos que ve el usuario
 └── main.py          montaje, polling o webhook, heartbeat, healthcheck
@@ -70,6 +71,11 @@ pulsación el bot comprueba que quien pulsa es el dueño y vuelve a leer su rol.
 - **Los logs de una ejecución** se ven con un botón en `/runs`: jobs, pasos fallidos y las últimas
   20 líneas del log del primer job fallido, leído en streaming para que un log enorme nunca quede
   entero en memoria.
+- **Secrets por Telegram**: solo admin y en privado; el mensaje se borra al llegar y el valor se
+  cifra antes de pedir confirmación, así que en memoria solo queda cifrado. Ver `docs/security.md`.
+- **Acciones de CI/CD como botones** en el detalle de `/runs`, solo para admins: cada botón es de un
+  solo uso y es la confirmación de esa acción concreta (cancelar, reintentar, aprobar o rechazar
+  un despliegue). El estado de la ejecución se vuelve a pedir al abrir el detalle.
 - **`/ci`** combina los estados del commit con los check runs; los PAT fine-grained no pueden leer
   check runs, así que ante un 403 usa las ejecuciones de Actions del commit. Un número de hasta 6
   dígitos es un PR; de 7 a 40 caracteres hexadecimales, un SHA.

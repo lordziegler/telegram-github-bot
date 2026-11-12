@@ -119,6 +119,7 @@ class Ctx:
     user_id: int
     user_name: str
     role: Role | None
+    message: Message | None = None  # el mensaje que lanzó el comando (p. ej. para borrarlo)
 
     @property
     def t(self) -> I18n:
@@ -192,17 +193,25 @@ class Ctx:
         token = self.rt.register(self.user_id, self.min_role or Role.VIEWER, run, BUTTON_TTL)
         return await run("1")
 
-    def button(self, label: str, action: Callable[[], Awaitable[Reply | str]]) -> tuple[str, str]:
-        """Botón que responde con un mensaje nuevo (p. ej. el detalle de un elemento)."""
+    def button(
+        self,
+        label: str,
+        action: Callable[[], Awaitable[Reply | str]],
+        role: Role | None = None,
+        once: bool = False,
+    ) -> tuple[str, str]:
+        """Botón que responde con un mensaje nuevo (p. ej. el detalle de un elemento).
+        `role` exige un rol mayor que el del comando; `once` lo hace de un solo uso (el propio
+        botón es la confirmación de una acción concreta, p. ej. «Aprobar despliegue»)."""
 
         async def run(_: str) -> Reply:
             result = await action()
             return Reply(result) if isinstance(result, str) else result
 
         token = self.rt.register(
-            self.user_id, self.min_role or Role.VIEWER, run, BUTTON_TTL, edit=False
+            self.user_id, role or self.min_role or Role.VIEWER, run, BUTTON_TTL, edit=False
         )
-        return (label, f"{token}:go")
+        return (label, f"{token}:{'ok' if once else 'go'}")
 
 
 class Runtime:
@@ -248,7 +257,7 @@ class Runtime:
             return
         cid = correlation_id.set(f"u{update.update_id}")
         role = self.store.role_of(user.id)
-        ctx = Ctx(self, cmd.name, cmd.role, user.id, user.full_name, role)
+        ctx = Ctx(self, cmd.name, cmd.role, user.id, user.full_name, role, message)
         extra = {"user_id": user.id, "chat_id": message.chat_id, "command": cmd.name}
         try:
             if self._rate_limited(user.id, cmd.name, cmd.per_minute):

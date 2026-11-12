@@ -56,6 +56,15 @@ Configuración, una sola vez:
 Opcionalmente, define la **variable** de repositorio `DEPLOY_PATH` (por defecto
 `/opt/telegram-github-bot`).
 
+### CD: desplegar solo tras cada CI verde
+
+Define la variable de repositorio `AUTO_DEPLOY` con el valor `true`. Desde entonces, cada push a
+`main` cuya CI termine bien lanza `deploy.yml` con exactamente ese commit. Si `production` tiene
+revisores obligatorios, la ejecución queda esperando: apruébala en GitHub o desde Telegram con
+`/runs deploy.yml` → pulsa el número → «✅ Aprobar despliegue» (hace falta que el dueño del token
+sea revisor del environment y el permiso *Deployments: Read and write*). Los PR de forks nunca
+disparan el despliegue.
+
 El `GITHUB_TOKEN` del workflow es de solo lectura; la comprobación estricta de la clave del host
 está activada y el archivo de la clave se borra al terminar el job.
 

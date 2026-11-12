@@ -17,7 +17,7 @@
 ## Permisos en GitHub
 
 Concede lo mínimo (tabla en el [README](../README.md#3-darle-acceso-a-github-mínimo-privilegio)):
-nada de escritura en Contents, ni Administration, ni Secrets. El bot solo gestiona los repositorios
+nada de escritura en Contents ni Administration, y Secrets solo si vas a usar `/secret`. El bot solo gestiona los repositorios
 de su lista, aunque el token vea más. Toda acción en GitHub queda registrada a nombre del dueño
 del token o de la App, nunca del usuario de Telegram; el log JSON del bot registra qué usuario de
 Telegram hizo qué (`user_id`, `command`, `cid`). Por eso `approve` / `request_changes` y `/run` son
@@ -35,6 +35,23 @@ instalación por repositorio y acciones atribuidas a la app.
   aplican límites de longitud.
 - Todo lo que viene de GitHub se escapa como HTML antes de enviarlo a Telegram.
 - Ningún mensaje se convierte nunca en un comando de shell, `eval` o subproceso.
+
+## Secrets enviados por Telegram
+
+`/secret set` existe por comodidad, con estas defensas:
+
+- Solo admin, y solo en chat privado. En un grupo se rechaza, se intenta borrar el mensaje y se
+  pide rotar el valor.
+- El bot borra el mensaje con el valor en cuanto llega (antes incluso de validarlo, aunque la
+  acción esté mal escrita), lo cifra con la clave pública del repositorio (sealed box de
+  libsodium, como exige GitHub) y desde ese momento solo guarda el texto cifrado, también
+  mientras espera la confirmación.
+- El valor nunca se repite en una respuesta ni se registra en los logs (hay un test que lo
+  comprueba).
+
+Límite que no se puede quitar: el mensaje pasa por los servidores de Telegram (los chats normales
+no tienen cifrado de extremo a extremo) y por el dispositivo hasta que se borra. Para valores
+críticos usa `gh secret set` o la web de GitHub; con el bot, valores que puedas rotar.
 
 ## Secretos
 
@@ -59,7 +76,8 @@ duplicados).
 - `ci.yml` usa `pull_request` (no `pull_request_target`): los pull requests de forks corren con un
   token de solo lectura y sin secretos. `permissions: contents: read`.
 - `docker.yml` solo tiene `packages: write` en el job que publica y usa `GITHUB_TOKEN`.
-- `deploy.yml` es manual, está ligado al environment `production` (añade revisores obligatorios),
+- `deploy.yml` se lanza a mano o, con `AUTO_DEPLOY=true`, tras una CI verde de un *push* a `main`
+  de este mismo repositorio (nunca por un PR de un fork); está ligado al environment `production` (añade revisores obligatorios),
   usa una clave SSH dedicada limitada con `restrict`, comprueba la clave fijada del host y borra la
   clave al terminar. El usuario de despliegue está en el grupo `docker`, lo que equivale a root en
   ese servidor: usa un servidor dedicado a servicios de confianza.

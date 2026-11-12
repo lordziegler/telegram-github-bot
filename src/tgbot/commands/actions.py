@@ -51,6 +51,24 @@ async def run(ctx: Ctx, text: str) -> Reply:
     return ctx.confirm(prompt, dispatch)
 
 
+@command("workflows", role=Role.VIEWER)
+async def workflows(ctx: Ctx, _: str) -> str:
+    repo = ctx.repo
+    data = await ctx.gh.get(f"/repos/{repo}/actions/workflows", per_page=100)
+    lines = [ctx.t("workflows_header", repo=repo)]
+    lines += [
+        ctx.t(
+            "workflow_line",
+            name=w["name"],
+            file=w["path"].rsplit("/", 1)[-1],
+            state=w["state"],
+            url=w["html_url"],
+        )
+        for w in data["workflows"]
+    ] or [ctx.t("workflows_none")]
+    return "\n".join(lines)
+
+
 @command("runs", role=Role.VIEWER)
 async def runs(ctx: Ctx, text: str) -> Reply:
     if not text:
@@ -85,8 +103,10 @@ async def runs(ctx: Ctx, text: str) -> Reply:
     return await ctx.paginate(render)
 
 
-def _details(ctx: Ctx, repo: str, run_: dict[str, Any]) -> Any:
-    async def show() -> str:
+def _details(ctx: Ctx, repo: str, listed: dict[str, Any]) -> Any:
+    async def show() -> Reply:
+        # La lista pudo quedarse vieja: el estado (p. ej. "waiting") se pide de nuevo.
+        run_ = await ctx.gh.get(f"/repos/{repo}/actions/runs/{listed['id']}")
         data = await ctx.gh.get(f"/repos/{repo}/actions/runs/{run_['id']}/jobs", per_page=30)
         jobs: list[dict[str, Any]] = data.get("jobs", [])
         lines = [
@@ -116,6 +136,41 @@ def _details(ctx: Ctx, repo: str, run_: dict[str, Any]) -> Any:
             text = "\n".join(_LOG_TIMESTAMP.sub("", line) for line in tail)[-1500:]
             lines.append(ctx.t("run_log_tail", job=failed_job["name"]))
             lines.append(f"<pre>{html.escape(text)}</pre>")
-        return "\n".join(lines)
+        buttons = await _run_actions(ctx, repo, run_) if ctx.role == Role.ADMIN else []
+        return Reply("\n".join(lines), [buttons] if buttons else [])
 
     return show
+
+
+async def _run_actions(ctx: Ctx, repo: str, run_: dict[str, Any]) -> list[tuple[str, str]]:
+    """Botones de CI/CD para admins: cancelar, reintentar, aprobar o rechazar un despliegue.
+    Cada botón es de un solo uso y es en sí la confirmación de esa acción concreta."""
+    base = f"/repos/{repo}/actions/runs/{run_['id']}"
+    number = run_["run_number"]
+
+    def post(path: str, done: str, body: dict[str, Any] | None = None) -> Any:
+        async def act() -> str:
+            await ctx.gh.request("POST", base + path, json=body)
+            return ctx.t(done, number=number)
+
+        return act
+
+    buttons = []
+    if run_["status"] == "waiting":  # un environment con revisores obligatorios espera
+        pending = await ctx.gh.get(base + "/pending_deployments")
+        ids = [p["environment"]["id"] for p in pending if p["current_user_can_approve"]]
+        if ids:
+            for state, label, done in (
+                ("approved", "btn_approve_deploy", "deploy_approved"),
+                ("rejected", "btn_reject_deploy", "deploy_rejected"),
+            ):
+                body = {"environment_ids": ids, "state": state, "comment": ctx.t("deploy_comment")}
+                act = post("/pending_deployments", done, body)
+                buttons.append(ctx.button(ctx.t(label), act, Role.ADMIN, once=True))
+    if run_["status"] != "completed":
+        act = post("/cancel", "run_cancelled")
+        buttons.append(ctx.button(ctx.t("btn_cancel_run"), act, Role.ADMIN, once=True))
+    elif run_["conclusion"] in {"failure", "cancelled", "timed_out"}:
+        act = post("/rerun-failed-jobs", "run_rerun")
+        buttons.append(ctx.button(ctx.t("btn_rerun"), act, Role.ADMIN, once=True))
+    return buttons

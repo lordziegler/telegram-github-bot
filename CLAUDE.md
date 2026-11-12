@@ -37,3 +37,5 @@ la interfaz).
 - Los admins, usuarios y repos del entorno no se pueden cambiar desde el chat (protección contra
   quedarse sin acceso).
 - Cada comando nuevo necesita las claves `cmd.<nombre>.desc|usage|example` (un test lo exige).
+- El valor de un secret: borrar el mensaje primero, cifrarlo enseguida, no repetirlo nunca en una
+  respuesta, un log ni un `UserError`.

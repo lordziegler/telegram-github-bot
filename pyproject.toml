@@ -5,7 +5,7 @@ description = "Bot de Telegram autoalojable para gestionar repositorios de GitHu
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-dependencies = ["python-telegram-bot>=22.8,<23"]
+dependencies = ["python-telegram-bot>=22.8,<23", "pynacl>=1.5,<2"]
 
 [project.optional-dependencies]
 webhooks = ["python-telegram-bot[webhooks]>=22.8,<23"]

@@ -48,6 +48,8 @@ _REF = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9._/-]{1,200}(?<![./])$")
 _WORKFLOW = re.compile(r"^(?:\d+|[A-Za-z0-9._-]{1,100}\.ya?ml)$")
 _INPUT_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]{0,99}$")
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+# Reglas de GitHub: alfanuméricos y _, sin empezar por número ni por GITHUB_.
+_SECRET = re.compile(r"^(?!GITHUB_)[A-Z_][A-Z0-9_]{0,199}$")
 
 
 def parse_repo(value: str) -> str:
@@ -86,6 +88,14 @@ def parse_ci_target(value: str) -> int | str:
     if _SHA.match(v):
         return v.lower()
     raise UserError("bad_ci_target", value=value)
+
+
+def parse_secret_name(value: str) -> str:
+    """GitHub guarda los nombres de secrets en mayúsculas."""
+    name = value.strip().upper()
+    if not value.strip().isascii() or not _SECRET.match(name):  # "ß".upper() == "SS"
+        raise UserError("bad_secret_name", value=value)
+    return name
 
 
 def parse_workflow(value: str) -> str:

@@ -1,8 +1,8 @@
 # telegram-github-bot
 
 Bot de Telegram autoalojado para trabajar con repositorios de GitHub desde un chat: consultar y
-crear issues, comentar, etiquetar, asignar, revisar pull requests, ver la CI y lanzar workflows de
-GitHub Actions. El acceso está limitado a una lista de usuarios de Telegram con tres roles.
+crear issues, comentar, etiquetar, asignar, revisar pull requests, ver la CI, lanzar workflows de
+GitHub Actions, aprobar despliegues (CD) y gestionar los secrets del repositorio. El acceso está limitado a una lista de usuarios de Telegram con tres roles.
 
 Todo lo que es tuyo (tokens, IDs de usuario, repositorios) vive en variables de entorno: nadie
 tiene que tocar el código para montar su propia instancia. La interfaz del bot está en español y
@@ -10,9 +10,9 @@ todos sus textos están en [`src/tgbot/locales/es.json`](src/tgbot/locales/es.js
 
 | Rol | Puede |
 |---|---|
-| `viewer` | `/repos` `/repo` `/issues` `/issue` `/prs` `/pr` `/ci` `/runs` |
+| `viewer` | `/repos` `/repo` `/issues` `/issue` `/prs` `/pr` `/ci` `/workflows` `/runs` |
 | `maintainer` | lo anterior + `/issue_new` `/comment` `/label` `/assign` `/close` `/reopen` `/review … comment` |
-| `admin` | lo anterior + `/review … approve\|request_changes` `/run` `/admin …` |
+| `admin` | lo anterior + `/review … approve\|request_changes` `/run` `/secret` `/admin …`, y en el detalle de cada ejecución de `/runs`: cancelar, reintentar lo fallido y aprobar o rechazar un despliegue pendiente |
 
 `/start`, `/help` y `/whoami` funcionan para cualquiera (un usuario desconocido ve su ID de
 Telegram para pedir acceso). Cerrar, reabrir, aprobar, pedir cambios, lanzar workflows y
@@ -49,7 +49,9 @@ repositories*, y concede exactamente:
 | Issues | Read and write | `/issues` `/issue` `/issue_new` `/comment` `/close` `/reopen` `/label` `/assign` |
 | Pull requests | Read and write | `/prs` `/pr` `/review` |
 | Commit statuses | Read | `/ci` |
-| Actions | Read and write | `/runs`, `/ci`; escritura solo para `/run` (usa Read si no vas a lanzar workflows) |
+| Actions | Read and write | `/workflows` `/runs` `/ci`; escritura para `/run`, cancelar y reintentar (usa Read si no las vas a usar) |
+| Secrets | Read and write | `/secret` (opcional: sin él, ese comando da error de permisos) |
+| Deployments | Read and write | aprobar o rechazar despliegues pendientes (opcional) |
 
 Ponlo en `GITHUB_TOKEN`. Un token fine-grained cubre un solo propietario (usuario u organización)
 y no tiene acceso a la API de check runs, así que `/ci` muestra en su lugar los estados del commit
@@ -63,7 +65,9 @@ ajustes de la instalación). Instala el extra `github-app` (la imagen Docker ya 
 token y app configurados, se usa la app.
 
 Sea cual sea la identidad, **toda acción en GitHub se hace a nombre de ese token o app**, no del
-usuario de Telegram. Por eso aprobar y pedir cambios es solo para admins.
+usuario de Telegram. Por eso aprobar, pedir cambios, lanzar workflows y tocar secrets es solo para
+admins. Aprobar un despliegue solo funciona si el dueño del token es revisor del environment (una
+GitHub App no puede serlo).
 
 ## 4. Configurar
 
@@ -95,9 +99,23 @@ en [docs/deployment.md](docs/deployment.md#modo-webhook).
 
 Ejecuta el mismo archivo de Compose en cualquier servidor con Docker. El workflow
 [`deploy.yml`](.github/workflows/deploy.yml) lo despliega o reinicia por SSH desde la pestaña
-Actions. Configuración, secretos y alternativas en [docs/deployment.md](docs/deployment.md).
+Actions, o solo tras cada CI verde en `main` si activas `AUTO_DEPLOY` (CD), esperando tu
+aprobación, que puedes dar desde el propio bot. Configuración, secretos y alternativas en [docs/deployment.md](docs/deployment.md).
 GitHub Actions sirve para *desplegar* el bot, no para alojarlo: los jobs tienen tiempo limitado y
 su disco se descarta, lo que borraría los roles y repositorios añadidos desde Telegram.
+
+### Secrets y CI/CD desde Telegram
+
+```text
+/secret                               # nombres de los secrets (GitHub nunca devuelve valores)
+/secret set DEPLOY_TOKEN abc123       # solo en chat privado: el bot borra tu mensaje y lo cifra
+/secret delete DEPLOY_TOKEN           # pide confirmación
+/workflows                            # workflows del repo y su estado
+/runs deploy.yml                      # pulsa #N: jobs, log y botones de admin
+```
+
+El valor de un secret pasa por los servidores de Telegram antes de que el bot lo borre: úsalo para
+valores que puedas rotar y lee [docs/security.md](docs/security.md#secrets-enviados-por-telegram).
 
 ## 7. Añadir repositorios y usuarios
 

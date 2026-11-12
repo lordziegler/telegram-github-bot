@@ -1,8 +1,14 @@
 name: Desplegar
 
-# Solo manual. Se conecta a tu servidor por SSH y ejecuta Docker Compose allí.
-# Los secretos del bot (.env) viven en el servidor, no en GitHub.
+# Se conecta a tu servidor por SSH y ejecuta Docker Compose allí. Los secretos del bot (.env)
+# viven en el servidor, no en GitHub. Se lanza a mano o, si la variable de repositorio
+# AUTO_DEPLOY vale "true", sola cuando la CI pasa en main (CD). El environment production
+# hace que espere tu aprobación: desde GitHub o desde Telegram (/runs deploy.yml).
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       action:
@@ -20,6 +26,13 @@ concurrency:
 
 jobs:
   deploy:
+    # Con workflow_run: solo pushes a este repo (nunca PRs de forks) y solo si la CI pasó.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (vars.AUTO_DEPLOY == 'true' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production  # añade revisores obligatorios a este environment en los ajustes
@@ -39,8 +52,9 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/telegram-github-bot' }}
-          ACTION: ${{ inputs.action }}
-          SHA: ${{ github.sha }}
+          ACTION: ${{ inputs.action || 'deploy' }}
+          # El commit que pasó la CI, no el último de main en el momento de lanzarse.
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes -o StrictHostKeyChecking=yes \

@@ -54,8 +54,9 @@ Herramientas dentro de un handler (`ctx`):
 | `ctx.require(Role.ADMIN)` | comprobación extra dentro de un comando (ver `/review`) |
 | `ctx.confirm(texto, accion)` | botones Confirmar/Cancelar; `accion` solo se ejecuta si confirma el mismo usuario |
 | `ctx.paginate(render)` | botones ◀ ▶; `render(pagina)` devuelve `(texto o Reply, hay_siguiente)` |
-| `ctx.button(texto, accion)` | botón que responde con un mensaje nuevo |
+| `ctx.button(texto, accion, rol, once)` | botón que responde con un mensaje nuevo; `rol` exige más rol que el comando y `once=True` lo hace de un solo uso |
 | `ctx.date(iso)` | una fecha de GitHub en `DEFAULT_TIMEZONE` |
+| `ctx.message` | el mensaje de Telegram que lanzó el comando (p. ej. para borrarlo) |
 
 Reglas: valida cada valor del usuario con los validadores de `domain.py` antes de que llegue a una
 URL; usa `ctx.confirm` para todo lo irreversible o lo que se hace en nombre de otro; nunca
