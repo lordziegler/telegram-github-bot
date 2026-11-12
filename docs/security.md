@@ -47,7 +47,8 @@ instalación por repositorio y acciones atribuidas a la app.
   libsodium, como exige GitHub) y desde ese momento solo guarda el texto cifrado, también
   mientras espera la confirmación.
 - El valor nunca se repite en una respuesta ni se registra en los logs (hay un test que lo
-  comprueba).
+  comprueba). Aunque pongas `LOG_LEVEL=DEBUG`, python-telegram-bot se queda en `INFO`, porque en
+  `DEBUG` registraría cada mensaje entero.
 
 Límite que no se puede quitar: el mensaje pasa por los servidores de Telegram (los chats normales
 no tienen cifrado de extremo a extremo) y por el dispositivo hasta que se borra. Para valores

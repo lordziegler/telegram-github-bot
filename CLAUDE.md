@@ -30,7 +30,8 @@ la interfaz).
 - Valida los valores del usuario con los validadores de `domain.py` antes de que lleguen a una ruta
   de la API de GitHub.
 - Nunca registres en el log el texto de los mensajes ni secretos; los logs pasan por
-  `JsonFormatter`, que los oculta.
+  `JsonFormatter`, que los oculta, y el logger `telegram` nunca baja de INFO (en DEBUG vuelca
+  updates enteros).
 - Las escrituras a GitHub (POST/PATCH) no se reintentan si la petición pudo haberse procesado.
 - Lo irreversible o lo que se hace a nombre del dueño del token pasa por `ctx.confirm`.
 - Los mensajes editados nunca ejecutan comandos (`allowed_updates` + `filters.UpdateType.MESSAGE`).

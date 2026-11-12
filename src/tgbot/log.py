@@ -27,7 +27,9 @@ _STD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {"mes
 class JsonFormatter(logging.Formatter):
     def __init__(self, secrets: Iterable[str] = ()) -> None:
         super().__init__()
-        self._secrets = sorted((s for s in secrets if len(s) >= 6), key=len, reverse=True)
+        # La salida es JSON: un secreto con comillas, \\ o saltos de línea aparece escapado.
+        forms = {f for s in secrets if len(s) >= 6 for f in (s, json.dumps(s)[1:-1])}
+        self._secrets = sorted(forms, key=len, reverse=True)
 
     def redact(self, text: str) -> str:
         for secret in self._secrets:
@@ -57,3 +59,7 @@ def setup_logging(level: str, secrets: Iterable[str]) -> None:
     # httpx registra cada URL en INFO, y las URLs de la Bot API contienen el token del bot.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    # En DEBUG, python-telegram-bot vuelca updates y parámetros completos (el texto de los
+    # mensajes, incluido el valor de /secret set): su nivel nunca baja de INFO.
+    numeric = logging.getLevelNamesMapping()[level]
+    logging.getLogger("telegram").setLevel(max(logging.INFO, numeric))

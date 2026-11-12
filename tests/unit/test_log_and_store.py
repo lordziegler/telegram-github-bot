@@ -8,7 +8,7 @@ import pytest
 from conftest import ADMIN, BOT_TOKEN, MAINTAINER, VIEWER, make_settings
 
 from tgbot.domain import Role, UserError
-from tgbot.log import JsonFormatter, correlation_id
+from tgbot.log import JsonFormatter, correlation_id, setup_logging
 from tgbot.store import Store
 
 
@@ -37,6 +37,26 @@ def test_secrets_never_reach_the_output() -> None:
         assert "[REDACTED]" in out, out
         for secret in (BOT_TOKEN, "my-webhook-secret", "ghs_123", "github_pat_11", "MIIE"):
             assert secret not in out
+
+
+def test_secrets_that_json_escapes_are_still_hidden() -> None:
+    odd = 'a"b\\c\nd-secret'
+    out = JsonFormatter([odd]).format(record("valor: %s", odd))
+    assert "[REDACTED]" in out and "d-secret" not in out
+
+
+def test_debug_never_lets_telegram_dump_messages() -> None:
+    root = logging.getLogger()
+    saved = root.handlers[:], root.level, logging.getLogger("telegram").level
+    try:
+        setup_logging("DEBUG", [BOT_TOKEN])
+        # PTB registra en DEBUG cada update y cada llamada con su texto completo.
+        assert not logging.getLogger("telegram.ext.Application").isEnabledFor(logging.DEBUG)
+        assert not logging.getLogger("telegram.ext.Updater").isEnabledFor(logging.DEBUG)
+        assert logging.getLogger("tgbot").isEnabledFor(logging.DEBUG)
+    finally:
+        root.handlers, root.level = saved[0], saved[1]
+        logging.getLogger("telegram").setLevel(saved[2])
 
 
 def test_json_shape_and_correlation_id() -> None:

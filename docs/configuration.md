@@ -32,9 +32,9 @@ Define `GITHUB_TOKEN` o las tres variables `GITHUB_APP_*`. Si están las dos cos
 |---|---|---|
 | `DEFAULT_REPOSITORIES` | | `owner/repo,owner/repo`. Fijos; se pueden añadir más con `/admin repo add`. Los duplicados se ignoran. |
 | `DEFAULT_TIMEZONE` | `UTC` (`.env.example` pone `America/Bogota`) | Zona IANA para mostrar fechas. |
-| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`. Aun en `DEBUG`, los logs de python-telegram-bot no bajan de `INFO`: en `DEBUG` vuelca el texto completo de los mensajes. |
 | `DATABASE_URL` | en memoria | `sqlite:///relativa.db` o `sqlite:////absoluta.db`; se crean los directorios padre. En memoria, lo cambiado desde Telegram se pierde al reiniciar (se avisa en el log). Docker Compose ignora este valor y usa siempre `/data/bot.db`. |
-| `RATE_LIMIT_REQUESTS_PER_MINUTE` | `30` | Por usuario, sumando todos los comandos. Algunos comandos tienen además su propio límite (`/run` 3, `/issue_new` 5, `/review` 5, `/comment` 10). |
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | `30` | Por usuario, sumando todos los comandos. Las pulsaciones de botones cuentan igual. Algunos comandos tienen además su propio límite (`/run` 3, `/issue_new` 5, `/review` 5, `/secret` 5, `/comment` 10). |
 | `MAX_MESSAGE_LENGTH` | `4000` | De 500 a 4096. Las respuestas más largas se envían como texto plano, cortadas a esta longitud. |
 | `BOT_LOCALE` | `es` | Nombre de un archivo de `src/tgbot/locales/`. |
 

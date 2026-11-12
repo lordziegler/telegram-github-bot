@@ -49,8 +49,12 @@ class Settings:
 
     def secrets(self) -> list[str]:
         """Todos los valores secretos, para ocultarlos en los logs."""
-        values = [self.telegram_bot_token, self.github_token, self.webhook_secret]
-        values.append(self.github_app_private_key)
+        values = [
+            self.telegram_bot_token,
+            self.github_token,
+            self.webhook_secret,
+            self.github_app_private_key,
+        ]
         return [v for v in values if v]
 
 
@@ -152,7 +156,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     db_url = get("DATABASE_URL")
     db_path = ":memory:"
     if db_url:
-        if not db_url.startswith("sqlite:///"):
+        if not db_url.startswith("sqlite:///") or db_url == "sqlite:///":
             errors.append(
                 "DATABASE_URL: solo se admite sqlite:///<ruta> (p. ej. sqlite:///data/bot.db)"
             )
@@ -170,7 +174,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         admin_user_ids=admins,
         webhook_url=webhook_url,
         webhook_secret=webhook_secret,
-        github_token=None if app_id else gh_token,  # si hay ambos, gana la App
+        github_token=gh_token,  # si también hay App, gana la App (main.make_github)
         github_app_id=app_id,
         github_app_private_key=app_key if app_id else None,
         github_app_installation_id=installation,

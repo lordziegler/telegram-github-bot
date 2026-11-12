@@ -13,6 +13,7 @@ from tgbot.domain import (
     parse_ref,
     parse_repo,
 )
+from tgbot.main import make_github
 
 
 def test_empty_env_lists_every_missing_variable() -> None:
@@ -41,6 +42,7 @@ def test_valid_env() -> None:
         ({"TELEGRAM_ALLOWED_USER_IDS": "12,abc"}, "TELEGRAM_ALLOWED_USER_IDS"),
         ({"DEFAULT_TIMEZONE": "Mars/Base"}, "DEFAULT_TIMEZONE"),
         ({"DATABASE_URL": "postgres://x"}, "sqlite"),
+        ({"DATABASE_URL": "sqlite:///"}, "sqlite"),
         ({"TELEGRAM_BOT_TOKEN": "nope"}, "BotFather"),
         ({"MAX_MESSAGE_LENGTH": "9000"}, "MAX_MESSAGE_LENGTH"),
     ],
@@ -53,7 +55,8 @@ def test_invalid_values_are_reported(overrides: dict[str, str], expected: str) -
 def test_github_app_wins_over_pat() -> None:
     pem = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----"
     s = make_settings(GITHUB_APP_ID="1", GITHUB_APP_PRIVATE_KEY=pem, GITHUB_APP_INSTALLATION_ID="2")
-    assert s.uses_github_app and s.github_token is None
+    assert s.uses_github_app and make_github(s)._app is not None  # la App gana
+    assert "ghp_testtoken0000000000000000000000000000" in s.secrets()  # el PAT se oculta igual
     assert s.github_app_private_key == pem.replace("\\n", "\n")
     assert BOT_TOKEN in s.secrets() and s.github_app_private_key in s.secrets()
 
