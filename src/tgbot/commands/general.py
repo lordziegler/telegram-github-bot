@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import html
 
-from tgbot.bot import COMMANDS, Ctx, command
+from tgbot.bot import Ctx, command, ordered_commands
 from tgbot.domain import Role, UserError, parse_repo
 from tgbot.github import GitHubError
 
@@ -20,7 +20,7 @@ async def start(ctx: Ctx, _: str) -> str:
 @command("help", role=None)
 async def help_(ctx: Ctx, _: str) -> str:
     lines = [ctx.t("help_header")]
-    for c in COMMANDS.values():
+    for c in ordered_commands():
         if c.role is None or (ctx.role is not None and ctx.role >= c.role):
             lines.append(
                 ctx.t(

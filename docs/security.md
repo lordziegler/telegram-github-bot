@@ -67,7 +67,7 @@ críticos usa `gh secret set` o la web de GitHub; con el bot, valores que puedas
 
 ## Límites contra el abuso
 
-Límites de frecuencia por usuario y por comando; las llamadas a GitHub se reintentan dentro de un
+Límites de frecuencia por usuario, por comando y también para las pulsaciones de botones; las llamadas a GitHub se reintentan dentro de un
 margen de 20 s; las escrituras nunca se reintentan si GitHub pudo haberlas procesado (sin issues
 duplicados).
 

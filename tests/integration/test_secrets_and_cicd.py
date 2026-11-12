@@ -225,3 +225,47 @@ def test_viewer_sees_no_cicd_actions_and_admin_reruns_failures() -> None:
         assert h.gh.calls("POST")[0].url.path == f"{REPO}/actions/runs/77/rerun-failed-jobs"
 
     run(scenario())
+
+
+def test_approve_and_reject_exclude_each_other() -> None:
+    async def scenario() -> None:
+        pending = [
+            {"environment": {"id": 9, "name": "production"}, "current_user_can_approve": True}
+        ]
+        h = await harness(
+            _routes(
+                _run("waiting", None),
+                {
+                    ("GET", f"{REPO}/actions/runs/77/pending_deployments"): pending,
+                    ("POST", f"{REPO}/actions/runs/77/pending_deployments"): [],
+                },
+            )
+        )
+        await h.send(ADMIN, "/runs deploy.yml")
+        await h.press(ADMIN, h.buttons()[0])
+        approve, reject, _cancel = h.buttons()
+        await h.press(ADMIN, approve)
+        await h.press(ADMIN, reject)
+        assert "caducó" in h.tg.alerts()[-1]
+        assert len(h.gh.calls("POST")) == 1
+
+    run(scenario())
+
+
+def test_waiting_deploy_the_token_cannot_approve_is_explained() -> None:
+    async def scenario() -> None:
+        pending = [
+            {"environment": {"id": 9, "name": "production"}, "current_user_can_approve": False}
+        ]
+        h = await harness(
+            _routes(
+                _run("waiting", None),
+                {("GET", f"{REPO}/actions/runs/77/pending_deployments"): pending},
+            )
+        )
+        await h.send(ADMIN, "/runs deploy.yml")
+        await h.press(ADMIN, h.buttons()[0])
+        assert "no es revisor" in h.tg.last_text()
+        assert len(h.buttons()) == 1  # solo «Cancelar»
+
+    run(scenario())

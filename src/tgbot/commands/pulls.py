@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from tgbot.bot import Ctx, Html, Reply, command
+from tgbot.bot import Ctx, Reply, command
 from tgbot.domain import Role, UserError, clean_text, parse_ci_target, parse_number
 from tgbot.github import GitHubError
 
@@ -34,7 +34,7 @@ async def prs(ctx: Ctx, text: str) -> Reply:
 
     async def render(page: int) -> tuple[str, bool]:
         items, has_next = await ctx.gh.page(f"/repos/{repo}/pulls", page, state=state)
-        lines = [ctx.t("prs_header", repo=repo, state=Html(ctx.t(f"state_{state}")), page=page)]
+        lines = [ctx.t("prs_header", repo=repo, state=ctx.t(f"state_{state}"), page=page)]
         lines += [
             ctx.t(
                 "pr_line",
@@ -44,7 +44,7 @@ async def prs(ctx: Ctx, text: str) -> Reply:
                 user=p["user"]["login"],
                 head=p["head"]["ref"],
                 base=p["base"]["ref"],
-                draft=Html(ctx.t("draft") if p.get("draft") else ""),
+                draft=ctx.t("draft") if p.get("draft") else "",
             )
             for p in items
         ] or [ctx.t("empty_page")]
@@ -66,8 +66,8 @@ async def pr(ctx: Ctx, text: str) -> str:
         number=number,
         url=p["html_url"],
         title=p["title"],
-        state=Html(ctx.t(f"state_{state}")),
-        draft=Html(ctx.t("draft") if p.get("draft") else ""),
+        state=ctx.t(f"status_{state}"),
+        draft=ctx.t("draft") if p.get("draft") else "",
         user=p["user"]["login"],
         head=p["head"]["ref"],
         base=p["base"]["ref"],

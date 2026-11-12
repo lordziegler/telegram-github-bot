@@ -27,10 +27,8 @@ log = logging.getLogger("tgbot")
 HEARTBEAT = Path(tempfile.gettempdir()) / "tgbot.heartbeat"
 HEARTBEAT_EVERY = 30
 WEBHOOK_PORT = 8080  # dentro del contenedor; publícalo o pon un proxy
-UPDATES = [
-    Update.MESSAGE,
-    Update.CALLBACK_QUERY,
-]  # sin mensajes editados: nada se ejecuta dos veces
+# Sin mensajes editados: nada se ejecuta dos veces.
+UPDATES = [Update.MESSAGE, Update.CALLBACK_QUERY]
 
 
 def make_github(settings: Settings) -> GitHub:
@@ -52,7 +50,7 @@ def make_github(settings: Settings) -> GitHub:
 async def _heartbeat(rt: Runtime) -> None:
     while True:
         HEARTBEAT.touch()
-        rt.limiter.prune()
+        rt.prune()
         await asyncio.sleep(HEARTBEAT_EVERY)
 
 

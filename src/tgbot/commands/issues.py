@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote
 
-from tgbot.bot import Ctx, Html, Reply, command
+from tgbot.bot import Ctx, Reply, command
 from tgbot.domain import Role, UserError, clean_text, parse_number, parse_user
 
 STATES = {"open", "closed", "all"}
@@ -29,7 +29,8 @@ def issue_line(ctx: Ctx, item: dict[str, Any]) -> str:
 
 @command("issues", role=Role.VIEWER)
 async def issues(ctx: Ctx, text: str) -> Reply:
-    state, params = "open", dict[str, Any]()
+    state = "open"
+    params: dict[str, Any] = {}
     labels: list[str] = []
     for token in text.split():
         key, _, value = token.partition(":")
@@ -51,7 +52,7 @@ async def issues(ctx: Ctx, text: str) -> Reply:
         # ponytail: filtrar tras paginar puede dejar páginas cortas; si importa, usar
         # la API de búsqueda.
         found = [i for i in items if "pull_request" not in i]
-        lines = [ctx.t("issues_header", repo=repo, state=Html(ctx.t(f"state_{state}")), page=page)]
+        lines = [ctx.t("issues_header", repo=repo, state=ctx.t(f"state_{state}"), page=page)]
         lines += [issue_line(ctx, i) for i in found] or [ctx.t("empty_page")]
         return "\n".join(lines), has_next
 
@@ -70,14 +71,14 @@ async def issue(ctx: Ctx, text: str) -> str:
         number=number,
         url=i["html_url"],
         title=i["title"],
-        state=ctx.t(f"state_{i['state']}"),
+        state=ctx.t(f"status_{i['state']}"),
         user=i["user"]["login"],
         labels=_names(i.get("labels", []), "name"),
         assignees=_names(i.get("assignees", []), "login"),
         comments=i["comments"],
         created=ctx.date(i["created_at"]),
         body=body[:1500] + ("…" if len(body) > 1500 else "") or "-",
-        pr_hint=Html(ctx.t("is_pr_hint", number=number) if "pull_request" in i else ""),
+        pr_hint=ctx.t("is_pr_hint", number=number) if "pull_request" in i else "",
     )
 
 
@@ -95,7 +96,7 @@ async def issue_new(ctx: Ctx, text: str) -> str:
 
 @command("comment", role=Role.MAINTAINER, per_minute=10)
 async def comment(ctx: Ctx, text: str) -> str:
-    number_text, _, body = text.partition(" ")
+    number_text, body = [*text.split(maxsplit=1), "", ""][:2]  # el texto puede ir en otra línea
     body = clean_text(body, 60000)
     if not number_text or not body:
         raise UserError("usage")
@@ -131,7 +132,7 @@ async def reopen(ctx: Ctx, text: str) -> Reply:
 
 def _split_changes(text: str, parse: Any) -> tuple[int, list[str], list[str]]:
     """`12 a,b,-c` -> (12, [a, b], [c]). Un '-' delante significa quitar."""
-    number_text, _, rest = text.partition(" ")
+    number_text, rest = [*text.split(maxsplit=1), "", ""][:2]
     names = [n.strip() for n in rest.split(",") if n.strip()]
     if not number_text or not names:
         raise UserError("usage")

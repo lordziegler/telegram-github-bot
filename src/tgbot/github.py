@@ -23,9 +23,8 @@ Json = Any  # el JSON de GitHub se usa como dicts/listas
 class GitHubError(Exception):
     def __init__(self, status: int, message: str, request_id: str | None = None) -> None:
         super().__init__(f"{status}: {message}")
-        self.status = (
-            status  # 0 = error de red; 429 = límite de frecuencia (también los 403 por límite)
-        )
+        # 0 = error de red; 429 = límite de frecuencia (también los 403 por límite).
+        self.status = status
         self.message = message
         self.request_id = request_id
 
@@ -83,11 +82,8 @@ class GitHub:
         *,
         params: dict[str, Any] | None = None,
         json: Json = None,
-        follow_redirects: bool = False,
     ) -> httpx.Response:
-        return await self._send(
-            method, path, await self._auth_header(), params, json, follow_redirects
-        )
+        return await self._send(method, path, await self._auth_header(), params, json)
 
     async def _send(
         self,
@@ -96,7 +92,6 @@ class GitHub:
         auth: str,
         params: dict[str, Any] | None = None,
         json: Json = None,
-        follow_redirects: bool = False,
     ) -> httpx.Response:
         headers = {
             "Authorization": auth,
@@ -114,7 +109,6 @@ class GitHub:
                     params=params,
                     json=json,
                     headers=headers,
-                    follow_redirects=follow_redirects,
                 )
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 # No llegó nada a GitHub: se puede reintentar cualquier método.
@@ -164,7 +158,7 @@ class GitHub:
         otro host; httpx quita la cabecera Authorization al redirigir a otro origen."""
         tail: deque[str] = deque(maxlen=lines)
         auth = await self._auth_header()
-        resp = await self._send("GET", path, auth, follow_redirects=False)
+        resp = await self._send("GET", path, auth)
         location = resp.headers.get("location")
         if resp.status_code != 302 or not location:
             return resp.text.splitlines()[-lines:]

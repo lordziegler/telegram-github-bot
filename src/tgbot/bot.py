@@ -86,6 +86,11 @@ class Command:
 COMMANDS: dict[str, Command] = {}
 
 
+def ordered_commands() -> list[Command]:
+    """Públicos primero, luego por rol; dentro de cada rol, en orden de registro."""
+    return sorted(COMMANDS.values(), key=lambda c: c.role or 0)
+
+
 def command(
     name: str, role: Role | None, per_minute: int | None = None
 ) -> Callable[[Handler], Handler]:
@@ -233,11 +238,17 @@ class Runtime:
         edit: bool = True,
     ) -> str:
         now = time.monotonic()
-        for key in [k for k, v in self.interactions.items() if v.expires < now]:
-            del self.interactions[key]
+        self.prune()
         token = secrets.token_urlsafe(9)
         self.interactions[token] = Interaction(owner, role, now + ttl, run, edit)
         return token
+
+    def prune(self) -> None:
+        """Olvida botones caducados y contadores viejos (también lo llama el heartbeat)."""
+        now = time.monotonic()
+        for key in [k for k, v in self.interactions.items() if v.expires < now]:
+            del self.interactions[key]
+        self.limiter.prune()
 
     def _chat_allowed(self, update: Update) -> bool:
         chat = update.effective_chat
@@ -292,6 +303,11 @@ class Runtime:
     async def _callback(self, query: CallbackQuery) -> None:
         token, _sep, arg = (query.data or "").partition(":")
         extra = {"user_id": query.from_user.id, "callback": arg}
+        if not self.limiter.allow(
+            ("user", query.from_user.id), self.settings.rate_limit_per_minute
+        ):
+            await query.answer(self.t("rate_limited"), show_alert=True)
+            return
         item = self.interactions.get(token)
         if item is None or item.expires < time.monotonic():
             await query.answer(self.t("expired"), show_alert=True)
@@ -407,5 +423,5 @@ async def publish_commands(app: Application) -> None:  # type: ignore[type-arg]
     """Muestra la lista de comandos en el menú "/" de los clientes de Telegram."""
     rt: Runtime = app.bot_data["runtime"]
     await app.bot.set_my_commands(
-        [BotCommand(name, rt.t(f"cmd.{name}.desc")[:256]) for name in COMMANDS]
+        [BotCommand(c.name, rt.t(f"cmd.{c.name}.desc")[:256]) for c in ordered_commands()]
     )

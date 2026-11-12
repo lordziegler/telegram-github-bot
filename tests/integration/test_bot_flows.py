@@ -327,3 +327,53 @@ def test_unexpected_errors_hide_details() -> None:
         assert "KeyError" not in h.tg.last_text() and "Traceback" not in h.tg.last_text()
 
     run(scenario())
+
+
+def test_detail_status_is_singular_and_text_may_start_on_a_new_line() -> None:
+    async def scenario() -> None:
+        h = await harness(
+            {
+                ("GET", f"{REPO}/issues/5"): fixture("issues.json")[0],
+                ("POST", f"{REPO}/issues/5/comments"): {"html_url": "https://x/c/2"},
+                ("POST", f"{REPO}/issues/5/labels"): [{"name": "bug"}],
+            }
+        )
+        await h.send(VIEWER, "/issue 5")
+        assert "Estado: abierto ·" in h.tg.last_text()
+        await h.send(MAINTAINER, "/comment 5\nprimera línea\nsegunda")
+        assert json.loads(h.gh.calls("POST")[0].content) == {"body": "primera línea\nsegunda"}
+        await h.send(MAINTAINER, "/label 5\nbug")
+        assert json.loads(h.gh.calls("POST")[1].content) == {"labels": ["bug"]}
+        await h.send(MAINTAINER, "/comment")
+        assert "Uso:" in h.tg.last_text()
+
+    run(scenario())
+
+
+def test_button_presses_are_rate_limited() -> None:
+    async def scenario() -> None:
+        page = httpx.Response(200, json=[], headers={"link": '<x?page=2>; rel="next"'})
+        h = await harness({("GET", f"{REPO}/issues"): page}, RATE_LIMIT_REQUESTS_PER_MINUTE="3")
+        await h.send(VIEWER, "/issues")
+        (next_page,) = h.buttons()
+        for _ in range(3):
+            await h.press(VIEWER, next_page)
+        assert "Demasiadas solicitudes" in h.tg.alerts()[-1]
+        assert len(h.gh.calls("GET")) == 3  # el comando + 2 pulsaciones; la tercera, bloqueada
+
+    run(scenario())
+
+
+def test_commands_are_listed_public_first() -> None:
+    async def scenario() -> None:
+        from tgbot.bot import publish_commands
+
+        h = await harness()
+        await publish_commands(h.app)
+        (params,) = [p for e, p in h.tg.calls if e == "setMyCommands"]
+        names = [c["command"] for c in params["commands"]]
+        assert names[:3] == ["start", "help", "whoami"] and names[-1] in {"admin", "secret"}
+        await h.send(ADMIN, "/help")
+        assert h.tg.last_text().index("/start") < h.tg.last_text().index("/run")
+
+    run(scenario())

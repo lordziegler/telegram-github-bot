@@ -67,7 +67,7 @@ async def secret(ctx: Ctx, text: str) -> Reply | str:
             verb = "secret_verb_create"
 
         async def put() -> str:
-            await ctx.gh.request("PUT", f"/repos/{repo}/actions/secrets/{name}", json=payload)
+            await ctx.gh.send("PUT", f"/repos/{repo}/actions/secrets/{name}", payload)
             return ctx.t("secret_saved", name=name, repo=repo)
 
         prompt = ctx.t("confirm_secret_set", verb=ctx.t(verb), name=name, repo=repo)
@@ -78,7 +78,7 @@ async def secret(ctx: Ctx, text: str) -> Reply | str:
         name = parse_secret_name(rest[0])
 
         async def delete() -> str:
-            await ctx.gh.request("DELETE", f"/repos/{repo}/actions/secrets/{name}")
+            await ctx.gh.send("DELETE", f"/repos/{repo}/actions/secrets/{name}")
             return ctx.t("secret_removed", name=name, repo=repo)
 
         return ctx.confirm(ctx.t("confirm_secret_delete", name=name, repo=repo), delete)

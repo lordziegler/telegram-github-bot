@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 import shlex
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from tgbot.bot import Ctx, Reply, command
@@ -103,7 +104,7 @@ async def runs(ctx: Ctx, text: str) -> Reply:
     return await ctx.paginate(render)
 
 
-def _details(ctx: Ctx, repo: str, listed: dict[str, Any]) -> Any:
+def _details(ctx: Ctx, repo: str, listed: dict[str, Any]) -> Callable[[], Awaitable[Reply]]:
     async def show() -> Reply:
         # La lista pudo quedarse vieja: el estado (p. ej. "waiting") se pide de nuevo.
         run_ = await ctx.gh.get(f"/repos/{repo}/actions/runs/{listed['id']}")
@@ -136,29 +137,42 @@ def _details(ctx: Ctx, repo: str, listed: dict[str, Any]) -> Any:
             text = "\n".join(_LOG_TIMESTAMP.sub("", line) for line in tail)[-1500:]
             lines.append(ctx.t("run_log_tail", job=failed_job["name"]))
             lines.append(f"<pre>{html.escape(text)}</pre>")
-        buttons = await _run_actions(ctx, repo, run_) if ctx.role == Role.ADMIN else []
+        buttons: list[tuple[str, str]] = []
+        if ctx.role == Role.ADMIN:
+            buttons, waiting_info = await _run_actions(ctx, repo, run_)
+            lines += [ctx.t("deploy_waiting_info")] if waiting_info else []
         return Reply("\n".join(lines), [buttons] if buttons else [])
 
     return show
 
 
-async def _run_actions(ctx: Ctx, repo: str, run_: dict[str, Any]) -> list[tuple[str, str]]:
+async def _run_actions(
+    ctx: Ctx, repo: str, run_: dict[str, Any]
+) -> tuple[list[tuple[str, str]], bool]:
     """Botones de CI/CD para admins: cancelar, reintentar, aprobar o rechazar un despliegue.
-    Cada botón es de un solo uso y es en sí la confirmación de esa acción concreta."""
+    Cada botón es de un solo uso y es en sí la confirmación de esa acción concreta.
+    Devuelve también si hay un despliegue esperando que este token no puede aprobar."""
     base = f"/repos/{repo}/actions/runs/{run_['id']}"
     number = run_["run_number"]
+    review: list[tuple[str, str]] = []  # aprobar y rechazar se excluyen entre sí
 
-    def post(path: str, done: str, body: dict[str, Any] | None = None) -> Any:
+    def post(
+        path: str, done: str, body: dict[str, Any] | None = None
+    ) -> Callable[[], Awaitable[str]]:
         async def act() -> str:
-            await ctx.gh.request("POST", base + path, json=body)
+            await ctx.gh.send("POST", base + path, body)
+            for _, data in review:  # tras aprobar o rechazar, el otro botón deja de valer
+                ctx.rt.interactions.pop(data.partition(":")[0], None)
             return ctx.t(done, number=number)
 
         return act
 
     buttons = []
+    waiting_info = False
     if run_["status"] == "waiting":  # un environment con revisores obligatorios espera
         pending = await ctx.gh.get(base + "/pending_deployments")
         ids = [p["environment"]["id"] for p in pending if p["current_user_can_approve"]]
+        waiting_info = bool(pending) and not ids
         if ids:
             for state, label, done in (
                 ("approved", "btn_approve_deploy", "deploy_approved"),
@@ -166,11 +180,12 @@ async def _run_actions(ctx: Ctx, repo: str, run_: dict[str, Any]) -> list[tuple[
             ):
                 body = {"environment_ids": ids, "state": state, "comment": ctx.t("deploy_comment")}
                 act = post("/pending_deployments", done, body)
-                buttons.append(ctx.button(ctx.t(label), act, Role.ADMIN, once=True))
+                review.append(ctx.button(ctx.t(label), act, Role.ADMIN, once=True))
+            buttons += review
     if run_["status"] != "completed":
         act = post("/cancel", "run_cancelled")
         buttons.append(ctx.button(ctx.t("btn_cancel_run"), act, Role.ADMIN, once=True))
     elif run_["conclusion"] in {"failure", "cancelled", "timed_out"}:
         act = post("/rerun-failed-jobs", "run_rerun")
         buttons.append(ctx.button(ctx.t("btn_rerun"), act, Role.ADMIN, once=True))
-    return buttons
+    return buttons, waiting_info
